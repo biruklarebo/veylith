@@ -5,8 +5,9 @@ import { SEED_EXERCISES } from './data/exercises';
 import { SEED_ROUTINES } from './data/routines';
 import { logBest1RM, uid } from './lib/calc';
 import { applyPhase, phaseOf } from './lib/plans';
+import { nextTarget, ruleFor } from './lib/progression';
 import type {
-  BodyStat, DayItem, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, Routine, Session, Settings, WorkoutDay,
+  BodyStat, DayItem, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
 } from './types';
 
 const idbStorage: StateStorage = {
@@ -69,20 +70,38 @@ interface State {
   updateSettings: (p: Partial<Settings>) => void;
 }
 
-// Prefill from the most recent completed log of the same exercise,
-// falling back to the plan.
-function logFromPlan(item: DayItem, sessions: Session[]): ExerciseLog {
-  const prev = sessions.find((s) => s.logs.some((l) => l.exerciseId === item.exerciseId))
+interface Prefill {
+  sessions: Session[];
+  settings: Settings;
+  custom: Exercise[];
+  rule: ProgressionRule;
+  deload?: boolean;
+}
+
+// Numbers for a planned exercise: the progression engine's target when a rule is on and there
+// is history, otherwise the most recent weights for this exercise, otherwise the plan.
+function logFromPlan(item: DayItem, p: Prefill): ExerciseLog {
+  const working = item.sets.find((x) => x.type !== 'warmup') ?? item.sets[0];
+  const base = { exerciseId: item.exerciseId, supersetId: item.supersetId, rest: working?.rest ?? 90 };
+  const target = nextTarget(item, p.sessions, findExercise(item.exerciseId, p.custom), p.rule, p.settings, { deload: p.deload });
+  if (target) {
+    const { sets, ...t } = target;
+    return {
+      ...base,
+      target: t,
+      sets: sets.map((x, i) => ({ ...x, rest: item.sets[Math.min(i, item.sets.length - 1)]?.rest ?? base.rest, done: false })),
+    };
+  }
+  const prev = p.sessions.find((s) => s.logs.some((l) => l.exerciseId === item.exerciseId))
     ?.logs.find((l) => l.exerciseId === item.exerciseId);
-  const sets: LoggedSet[] = item.sets.map((p, i) => ({
-    type: p.type,
-    weightLbs: p.weightLbs ?? prev?.sets[i]?.weightLbs ?? prev?.sets.at(-1)?.weightLbs ?? 0,
-    reps: p.reps,
-    rest: p.rest,
+  const sets: LoggedSet[] = item.sets.map((x, i) => ({
+    type: x.type,
+    weightLbs: x.weightLbs ?? prev?.sets[i]?.weightLbs ?? prev?.sets.at(-1)?.weightLbs ?? 0,
+    reps: x.reps,
+    rest: x.rest,
     done: false,
   }));
-  const working = item.sets.find((p) => p.type !== 'warmup') ?? item.sets[0];
-  return { exerciseId: item.exerciseId, supersetId: item.supersetId, rest: working?.rest ?? 90, sets };
+  return { ...base, sets };
 }
 
 export const useStore = create<State>()(
@@ -133,7 +152,7 @@ export const useStore = create<State>()(
         })),
 
       startSession: (routineId, dayId) => {
-        const { routines, sessions } = getState();
+        const { routines, sessions, settings, customExercises } = getState();
         const routine = routines.find((r) => r.id === routineId);
         const planned = routine?.days.find((d) => d.id === dayId);
         // Adaptive plans adjust sets/reps for the current mesocycle week.
@@ -147,7 +166,11 @@ export const useStore = create<State>()(
             dayId,
             start: Date.now(),
             current: 0,
-            logs: day ? day.items.map((it) => logFromPlan(it, sessions)) : [],
+            logs: day
+              ? day.items.map((it) =>
+                  logFromPlan(it, { sessions, settings, custom: customExercises, rule: ruleFor(routine), deload: phase?.phase === 'Deload' }),
+                )
+              : [],
           },
         });
       },
@@ -158,7 +181,7 @@ export const useStore = create<State>()(
             name,
             start: Date.now(),
             current: 0,
-            logs: items.map((it) => logFromPlan(it, s.sessions)),
+            logs: items.map((it) => logFromPlan(it, { sessions: s.sessions, settings: s.settings, custom: s.customExercises, rule: 'off' })),
           },
         })),
       updateActive: (fn) => setState((s) => (s.activeSession ? { activeSession: fn(s.activeSession) } : {})),
@@ -169,7 +192,7 @@ export const useStore = create<State>()(
         const { activeSession, records, sessions, routines } = getState();
         if (!activeSession) return null;
         const logs = doneLogs(activeSession);
-        const session: Session = { ...activeSession, logs, end: activeSession.end ?? Date.now(), rest: null, current: undefined };
+        const session: Session = { ...activeSession, logs, end: activeSession.end ?? Date.now(), rest: null, current: undefined, skipRest: undefined };
         const prs = findPRs(logs, records);
         const nextRecords = { ...records };
         for (const l of logs) {
@@ -256,4 +279,14 @@ export function findExercise(id: string, custom: Exercise[]): Exercise | undefin
 export function useExercise(id: string): Exercise | undefined {
   const custom = useStore((s) => s.customExercises);
   return findExercise(id, custom);
+}
+
+// The most recent finished log of an exercise, before `before` when given.
+export function previousLog(sessions: Session[], exerciseId: string, before?: number): { log: ExerciseLog; at: number } | null {
+  for (const s of sessions) {
+    if (before !== undefined && s.start >= before) continue;
+    const log = s.logs.find((l) => l.exerciseId === exerciseId && l.sets.some((x) => x.done));
+    if (log) return { log, at: s.start };
+  }
+  return null;
 }

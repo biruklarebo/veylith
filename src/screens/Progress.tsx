@@ -3,6 +3,8 @@ import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
 import { dayKey, fmtDuration, fmtWeight, sessionSetCount, sessionVolume, toDisplay, weekStreak } from '../lib/calc';
 import { LineChart } from '../components/LineChart';
+import { BodyMap } from '../components/BodyMap';
+import { daysSince, fatigue, hoursToReady, volume } from '../lib/recovery';
 import { Empty } from '../components/ui';
 import { BODY_PARTS } from '../types';
 
@@ -19,19 +21,6 @@ export function Progress() {
     sessions.forEach((s) => m.set(dayKey(s.start), (m.get(dayKey(s.start)) ?? 0) + 1));
     return m;
   }, [sessions]);
-
-  // Muscle recovery: days since each body part was last trained (72h = fully recovered).
-  const lastTrained = useMemo(() => {
-    const m = new Map<number, number>();
-    for (const s of sessions) {
-      for (const l of s.logs) {
-        const ex = findExercise(l.exerciseId, customExercises);
-        if (!ex) continue;
-        for (const p of [ex.bodyPart, ...(ex.secondary ?? [])]) if (!m.has(p)) m.set(p, s.end ?? s.start);
-      }
-    }
-    return m;
-  }, [sessions, customExercises]);
 
   const firstDow = (month.getDay() + 6) % 7;
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
@@ -110,24 +99,7 @@ export function Progress() {
         </div>
       </section>
 
-      <section className="card">
-        <h3>Muscle recovery</h3>
-        <p className="muted small">Time since each muscle group was last trained. 72h counts as recovered.</p>
-        {BODY_PARTS.slice(0, 10).map((name, p) => {
-          const t = lastTrained.get(p);
-          const hours = t ? (Date.now() - t) / 36e5 : Infinity;
-          const pct = Math.min(1, hours / 72);
-          return (
-            <div key={p} className="bar-row">
-              <span>{name}</span>
-              <div className="bar recovery">
-                <span style={{ width: `${pct * 100}%` }} />
-              </div>
-              <span className="muted small">{t ? (pct >= 1 ? 'Ready' : `${Math.round(pct * 100)}%`) : 'Fresh'}</span>
-            </div>
-          );
-        })}
-      </section>
+      <MusclesCard />
 
       <section className="card">
         <div className="row">
@@ -183,5 +155,102 @@ export function Progress() {
         </ul>
       )}
     </div>
+  );
+}
+
+type MuscleMode = 'recovery' | 'volume' | 'untrained';
+const WINDOWS = [
+  { days: 7, label: 'Week' },
+  { days: 30, label: '30d' },
+  { days: 90, label: '90d' },
+];
+
+// Body map in three modes: what is still recovering, where the volume went, what has gone untrained.
+function MusclesCard() {
+  const { sessions, customExercises } = useStore();
+  const [mode, setMode] = useState<MuscleMode>('recovery');
+  const [days, setDays] = useState(7);
+  const find = (id: string) => findExercise(id, customExercises);
+  const data = useMemo(() => {
+    const f = fatigue(sessions, find);
+    const v = volume(sessions, find, days);
+    const since = daysSince(sessions, find);
+    return { f, v, since };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, customExercises, days]);
+
+  const parts = BODY_PARTS.slice(0, 10).map((name, p) => ({ name, p }));
+  const maxV = Math.max(1, ...data.v);
+  const heat =
+    mode === 'recovery'
+      ? data.f
+      : mode === 'volume'
+        ? data.v.map((n) => n / maxV)
+        : data.since.map((d) => (d === null ? 1 : Math.min(1, Math.max(0, (d - 4) / 10))));
+
+  const rows =
+    mode === 'recovery'
+      ? [...parts].sort((a, b) => data.f[b.p] - data.f[a.p])
+      : mode === 'volume'
+        ? [...parts].sort((a, b) => data.v[b.p] - data.v[a.p])
+        : [...parts].sort((a, b) => (data.since[b.p] ?? 1e9) - (data.since[a.p] ?? 1e9));
+
+  return (
+    <section className="card muscles-card">
+      <div className="seg-ctl" role="tablist" aria-label="Muscle view">
+        {(
+          [
+            ['recovery', 'Recovery'],
+            ['volume', 'Volume'],
+            ['untrained', 'Untrained'],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => setMode(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="muted small">
+        {mode === 'recovery' && 'Brighter = more fatigue still on the muscle, from hard sets fading over time.'}
+        {mode === 'volume' && 'Hard sets per muscle (secondary muscles count 0.4).'}
+        {mode === 'untrained' && 'Brighter = longer since you trained it directly.'}
+      </p>
+      {mode === 'volume' && (
+        <div className="seg-ctl small">
+          {WINDOWS.map((w) => (
+            <button key={w.days} className={days === w.days ? 'on' : ''} onClick={() => setDays(w.days)}>
+              {w.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <BodyMap heat={heat} className={`muscle-map m-${mode}`} />
+      <div className="bars">
+        {rows.slice(0, mode === 'untrained' ? 10 : 6).map(({ name, p }) => {
+          const pct = mode === 'recovery' ? 1 - data.f[p] : mode === 'volume' ? data.v[p] / maxV : heat[p];
+          const label =
+            mode === 'recovery'
+              ? hoursToReady(data.f[p], p)
+                ? `ready in ~${hoursToReady(data.f[p], p)}h`
+                : 'Ready'
+              : mode === 'volume'
+                ? `${Math.round(data.v[p] * 10) / 10} sets`
+                : data.since[p] === null
+                  ? 'never'
+                  : data.since[p] === 0
+                    ? 'today'
+                    : `${data.since[p]}d ago`;
+          return (
+            <div key={p} className="bar-row">
+              <span>{name}</span>
+              <div className={`bar ${mode === 'recovery' ? 'recovery' : ''}`}>
+                <span style={{ width: `${Math.max(2, pct * 100)}%` }} />
+              </div>
+              <span className="muted small">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

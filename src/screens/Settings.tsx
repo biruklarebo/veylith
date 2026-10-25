@@ -1,5 +1,7 @@
 import { useStore } from '../store';
 import { Header } from '../components/ui';
+import { DEFAULT_BAR, DEFAULT_PLATES, barOf, platesOf } from '../lib/plates';
+import type { EffortScale } from '../types';
 
 export function SettingsScreen() {
   const { settings, updateSettings, sessions, routines, bodyStats, customExercises, records } = useStore();
@@ -30,7 +32,7 @@ export function SettingsScreen() {
           settings: { ...settings, ...d.settings },
         });
       } catch {
-        alert('That file is not an Veylith export.');
+        alert('That file is not a Veylith export.');
       }
     });
   };
@@ -59,6 +61,56 @@ export function SettingsScreen() {
             onChange={(e) => updateSettings({ defaultRest: +e.target.value || 0 })}
           />
         </label>
+        <label className="row gap">
+          <span className="grow">Flash screen when rest ends</span>
+          <input type="checkbox" checked={settings.flash !== false} onChange={(e) => updateSettings({ flash: e.target.checked })} />
+        </label>
+        <label className="row gap">
+          <span className="grow">
+            Effort per set
+            <small className="muted block">RIR = reps left in the tank, RPE = 10 − RIR</small>
+          </span>
+          <select value={settings.effort ?? 'rir'} onChange={(e) => updateSettings({ effort: e.target.value as EffortScale })}>
+            <option value="rir">RIR</option>
+            <option value="rpe">RPE</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
+      </section>
+      <section className="card">
+        <h3>Bar and plates</h3>
+        <p className="muted small">Used to show which plates go on each side for barbell lifts.</p>
+        <label className="row gap">
+          <span className="grow">Bar weight ({settings.unit})</span>
+          <input
+            className="narrow"
+            inputMode="decimal"
+            value={barOf(settings)}
+            onChange={(e) => updateSettings({ bar: { ...(settings.bar ?? DEFAULT_BAR), [settings.unit]: parseFloat(e.target.value) || 0 } })}
+          />
+        </label>
+        <span className="muted small">Plates you own ({settings.unit})</span>
+        <div className="chips wrap">
+          {[...new Set([...DEFAULT_PLATES[settings.unit], ...platesOf(settings)])]
+            .sort((a, b) => b - a)
+            .map((p) => {
+              const owned = platesOf(settings).includes(p);
+              return (
+                <button
+                  key={p}
+                  className={`chip ${owned ? 'on' : ''}`}
+                  aria-pressed={owned}
+                  onClick={() => {
+                    const cur = platesOf(settings);
+                    const next = owned ? cur.filter((x) => x !== p) : [...cur, p];
+                    updateSettings({ plates: { ...(settings.plates ?? DEFAULT_PLATES), [settings.unit]: next } });
+                  }}
+                >
+                  {p}
+                </button>
+              );
+            })}
+        </div>
       </section>
       <section className="card">
         <h3>Data</h3>

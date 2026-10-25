@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavContext, useUI, type Nav, type Screen, type Tab } from './nav';
 import { findExercise, useStore } from './store';
 import { fmtHMS } from './lib/calc';
-import { beep } from './lib/alarm';
+import { beep, flashScreen, useWakeLock } from './lib/alarm';
 import { Discover } from './screens/Discover';
 import { Workouts } from './screens/Workouts';
 import { RoutineDetail } from './screens/RoutineDetail';
@@ -79,12 +79,15 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [stack.length, tab]);
 
+  useWakeLock(!!activeSession && !activeSession.end);
+
   // Rest timer alarm fires wherever the user is in the app.
   const rest = activeSession?.rest;
   useEffect(() => {
     if (!rest || rest.pausedLeft !== undefined) return;
     const t = setTimeout(() => {
       beep();
+      if (useStore.getState().settings.flash !== false) flashScreen();
       useStore.getState().updateActive((x) => ({ ...x, rest: null }));
     }, Math.max(0, rest.endsAt - Date.now()));
     return () => clearTimeout(t);
@@ -114,13 +117,15 @@ export default function App() {
     <NavContext.Provider value={nav}>
       <main className={`app ${top ? 'stacked' : ''} ${full ? 'full' : ''} ${activeSession && !full ? 'with-bar' : ''}`}>
         {top ? (
-          <div key={stack.length}>{renderScreen(top)}</div>
+          <div key={stack.length} className="view-in">
+            {renderScreen(top)}
+          </div>
         ) : (
-          <>
+          <div key={tab} className="view-in">
             {tab === 'discover' && <Discover />}
             {tab === 'workout' && <Workouts />}
             {tab === 'progress' && <Progress />}
-          </>
+          </div>
         )}
       </main>
 

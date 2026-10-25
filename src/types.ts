@@ -65,7 +65,10 @@ export interface Routine {
   location?: Location;
   // Adaptive mesocycle: phases advance weekly from `start`.
   adaptive?: { start: number; weeks: number };
+  progression?: ProgressionRule; // unset = picked from the focus (see lib/progression)
 }
+
+export type ProgressionRule = 'off' | 'linear' | 'double' | 'triple';
 
 export interface LoggedSet {
   type: SetType;
@@ -73,7 +76,18 @@ export interface LoggedSet {
   reps: number;
   durationSec?: number;
   rest?: number; // seconds after this set; falls back to the log's rest
+  rir?: number; // reps in reserve, 0 = failure (shown as RPE 10 - rir when that scale is picked)
   done: boolean;
+}
+
+// What the progression engine asked for when the log was created. Kept with the log so the
+// next session judges the set against what was actually prescribed.
+export interface LogTarget {
+  rule: ProgressionRule;
+  kind: 'first' | 'up' | 'reps' | 'set' | 'hold' | 'deload';
+  reason: string;
+  weightLbs: number;
+  reps: number[];
 }
 
 export interface ExerciseLog {
@@ -81,6 +95,7 @@ export interface ExerciseLog {
   supersetId: number;
   rest: number;
   sets: LoggedSet[];
+  target?: LogTarget;
 }
 
 export interface Session {
@@ -135,8 +150,14 @@ export interface BodyStat {
   values: Partial<Record<BodyField, number>>;
 }
 
+export type EffortScale = 'off' | 'rir' | 'rpe';
+
 export interface Settings {
   unit: 'lb' | 'kg';
   defaultRest: number;
   restTimerOn: boolean;
+  effort?: EffortScale; // per-set effort column; unset = 'rir'
+  bar?: { lb: number; kg: number }; // barbell weight in each unit
+  plates?: { lb: number[]; kg: number[] }; // plate sizes owned, per unit
+  flash?: boolean; // flash the screen when rest ends; unset = on
 }

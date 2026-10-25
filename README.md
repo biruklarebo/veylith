@@ -20,6 +20,10 @@ Three tabs: **Discover · Workout · Progress**.
 - **Celebration**: Nth-workout chip, shareable cards (volume comparison, month calendar, muscle split, exercise list).
 - **Progress**: stats, calendar, muscle recovery, body weight, records, history. **Discover**: train-by-muscle grid, exercise library, body stats, settings.
 
+- **Progression** (per routine: Off / Linear / Double / Triple): each exercise opens with a target worked out from your history and a one-line reason ("Hit 12 on every set, so 5 lb more"). Missed reps never add load; stalls trigger a 10% deload. Workout Complete shows *Last time* and *Next time* per lift.
+- **Logger extras**: last-time line, plates per side for barbell lifts (tap for a plate diagram; bar and owned plates in Settings), *Add warm-up sets* ramp, per-set RIR/RPE, swipe a set left to delete (Undo) or right to copy. Screen stays awake during a workout and flashes when rest ends.
+- **Muscles card** on Progress: Recovery (hard sets fading with a per-muscle half-life), Volume (Week / 30d / 90d) and Untrained.
+
 Body maps are SVG; theme is navy with an orange accent.
 
 ## Data

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNav } from '../nav';
-import { doneLogs, findExercise, findPRs, useStore, type FinishResult } from '../store';
+import { doneLogs, findExercise, findPRs, previousLog, useStore, type FinishResult } from '../store';
+import { itemForLog, nextTarget } from '../lib/progression';
 import { dayKey, fmtHMS, muscleHeat, oneRepMax, ordinal, sessionVolume, toDisplay, volumeComparison, weekStreak } from '../lib/calc';
 import { BodyMap, ExerciseThumb } from '../components/BodyMap';
 import { ActionSheet, Sheet } from '../components/Sheet';
@@ -20,7 +21,7 @@ function sessionHeat(logs: ExerciseLog[], custom: Exercise[]) {
 
 const unitLabel = (s: Settings) => (s.unit === 'kg' ? 'kg' : 'lbs');
 
-function ExerciseTables({ logs, onMore }: { logs: ExerciseLog[]; onMore?: (i: number) => void }) {
+function ExerciseTables({ logs, onMore, note }: { logs: ExerciseLog[]; onMore?: (i: number) => void; note?: (l: ExerciseLog) => ReactNode }) {
   const nav = useNav();
   const { customExercises, settings } = useStore();
   const u = unitLabel(settings);
@@ -63,6 +64,7 @@ function ExerciseTables({ logs, onMore }: { logs: ExerciseLog[]; onMore?: (i: nu
                 })}
               </tbody>
             </table>
+            {note?.(l)}
           </li>
         );
       })}
@@ -86,6 +88,41 @@ export function Review() {
   const volume = sessionVolume({ ...s, logs });
   const prs = findPRs(logs, records);
   const heat = sessionHeat(logs, customExercises);
+  const { sessions, routines } = useStore.getState();
+  const finished: Session = { ...s, logs };
+
+  // Last time vs today, and what the next session will open with (same engine Start uses).
+  const compare = (l: ExerciseLog) => {
+    const ex = findExercise(l.exerciseId, customExercises);
+    if (!ex || ex.recordType === 'cardio') return null;
+    const w = (x: number) => toDisplay(x, settings);
+    const work = (sets: ExerciseLog['sets']) => sets.filter((x) => x.type !== 'warmup');
+    const prev = previousLog(sessions, l.exerciseId, s.start);
+    const { item, rule } = itemForLog(l, finished, routines);
+    const next = nextTarget(item, [finished, ...sessions], ex, rule, settings);
+    const fmt = (sets: { weightLbs: number; reps: number }[]) => {
+      const same = sets.every((x) => x.weightLbs === sets[0]?.weightLbs);
+      return same && sets.length ? `${w(sets[0].weightLbs)} × ${sets.map((x) => x.reps).join(', ')}` : sets.map((x) => `${w(x.weightLbs)}×${x.reps}`).join(', ');
+    };
+    const vol = (sets: ExerciseLog['sets']) => work(sets).reduce((a, x) => a + x.weightLbs * x.reps, 0);
+    const delta = prev ? vol(l.sets) - vol(prev.log.sets.filter((x) => x.done)) : 0;
+    return (
+      <div className="cmp">
+        {prev && (
+          <p>
+            <span className="muted">Last time</span> {fmt(work(prev.log.sets.filter((x) => x.done)))}
+            {delta !== 0 && <span className={delta > 0 ? 'good' : 'muted'}> {delta > 0 ? '▲' : '▼'} {Math.abs(Math.round(w(delta)))} {unitLabel(settings)} volume</span>}
+          </p>
+        )}
+        {next && (
+          <p>
+            <span className="muted">Next time</span> <b className="accent">{fmt(next.sets.filter((x) => x.type !== 'warmup'))}</b>
+            <small className="muted block">{next.reason}</small>
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const back = () => {
     resumeSession();
@@ -179,7 +216,7 @@ export function Review() {
       {logs.length === 0 ? (
         <p className="muted">No sets were logged, so there's nothing to save yet.</p>
       ) : (
-        <ExerciseTables logs={logs} onMore={setExMenu} />
+        <ExerciseTables logs={logs} onMore={setExMenu} note={compare} />
       )}
 
       <div className="rv-foot">

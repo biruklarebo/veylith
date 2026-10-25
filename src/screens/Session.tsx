@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNav } from '../nav';
-import { findExercise, useStore } from '../store';
+import { findExercise, previousLog, useStore } from '../store';
 import { fmtClock, fmtHMS, fromDisplay, logBest1RM, toDisplay } from '../lib/calc';
-import { beep, useNow } from '../lib/alarm';
+import { beep, tap, useNow } from '../lib/alarm';
+import { RULE_NAME } from '../lib/progression';
+import { fmtPlates, loadBar, usesPlates, warmupRamp } from '../lib/plates';
+import { EFFORT_LEVELS, effortHue, effortLabel, effortScale, fmtSetsWithEffort } from '../lib/effort';
 import { Figure, exerciseHeat } from '../components/BodyMap';
 import { ActionSheet, Sheet } from '../components/Sheet';
-import { Empty } from '../components/ui';
-import type { ExerciseLog, LoggedSet, Session, SetType } from '../types';
+import { Empty, Toast, type ToastMsg } from '../components/ui';
+import type { EffortScale, ExerciseLog, LogTarget, LoggedSet, Session, SetType, Settings } from '../types';
 
 export const SET_TYPES: { id: SetType; short: string; label: string; help: string }[] = [
   { id: 'regular', short: '', label: 'Working', help: 'A normal set that counts toward volume and records.' },
@@ -31,6 +34,10 @@ export function SessionScreen() {
   const [more, setMore] = useState(false);
   const [notes, setNotes] = useState(false);
   const [interval, setIntervalOpen] = useState(false);
+  const [plateFor, setPlateFor] = useState<number | null>(null);
+  const [effortFor, setEffortFor] = useState<number | null>(null);
+  const [toast, setToast] = useState<ToastMsg | null>(null);
+  const [flashRow, setFlashRow] = useState<number | null>(null);
   const touch = useRef<number | null>(null);
 
   const idx = s ? Math.min(Math.max(0, s.current ?? 0), Math.max(0, s.logs.length - 1)) : 0;
@@ -120,7 +127,33 @@ export function SessionScreen() {
       };
     });
     setSel(null);
+    tap();
     if (!s.skipRest && settings.restTimerOn && restSec > 0) setRestRow(j);
+  };
+
+  // Swipe actions on a set row: left deletes (with undo), right copies it below.
+  const removeSet = (j: number) => {
+    const at = idx;
+    const before = s.logs[at];
+    patchLog((l) => ({ ...l, sets: l.sets.filter((_, k) => k !== j) }), at);
+    setSel(null);
+    setToast({ id: Date.now(), text: `Set ${j + 1} deleted`, action: 'Undo', onAction: () => patchLog(() => before, at) });
+  };
+  const copySet = (j: number) => {
+    patchLog((l) => ({ ...l, sets: [...l.sets.slice(0, j + 1), { ...l.sets[j], done: false, rir: undefined }, ...l.sets.slice(j + 1)] }));
+    setFlashRow(j + 1);
+    setTimeout(() => setFlashRow(null), 600);
+  };
+  const addWarmups = () => {
+    if (!log) return;
+    const work = log.sets.find((x) => x.type !== 'warmup')?.weightLbs ?? 0;
+    const ramp = warmupRamp(work, ex, settings);
+    if (!ramp.length) {
+      setToast({ id: Date.now(), text: work ? 'Weight is too light for a warm-up ramp' : 'Enter a working weight first' });
+      return;
+    }
+    patchLog((l) => ({ ...l, sets: [...ramp.map((x) => ({ ...x, done: false })), ...l.sets.filter((x) => x.type !== 'warmup' || x.done)] }));
+    setToast({ id: Date.now(), text: `Added ${ramp.length} warm-up sets` });
   };
 
   const addSet = () =>
@@ -161,6 +194,10 @@ export function SessionScreen() {
 
   const best = Math.max(records[log?.exerciseId ?? '']?.best1RM ?? 0, log ? logBest1RM(log) : 0);
   const tmpl = log?.sets.at(-1);
+  const scale = effortScale(settings);
+  const prev = log ? previousLog(sessions, log.exerciseId) : null;
+  const curSet = log?.sets[Math.max(0, cur)] ?? log?.sets.at(-1);
+  const bar = usesPlates(ex) && curSet && curSet.weightLbs > 0 ? loadBar(curSet.weightLbs, settings) : null;
 
   return (
     <div
@@ -170,7 +207,7 @@ export function SessionScreen() {
         if (touch.current === null) return;
         const dx = e.changedTouches[0].clientX - touch.current;
         touch.current = null;
-        if ((e.target as HTMLElement).closest('input, .sheet')) return;
+        if ((e.target as HTMLElement).closest('input, .sheet, .lg-row')) return;
         if (dx < -70) go(idx + 1);
         if (dx > 70) go(idx - 1);
       }}
@@ -218,6 +255,22 @@ export function SessionScreen() {
             )}
           </div>
           {log.supersetId > 0 && <p className="ss-note accent small">Superset · alternates with the next exercise</p>}
+          <div className="lg-info">
+            {prev && (
+              <p className="muted">
+                Last time ({new Date(prev.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}):{' '}
+                {cardio
+                  ? prev.log.sets.filter((x) => x.done).map((x) => `${x.reps} min`).join(', ')
+                  : fmtSetsWithEffort(prev.log.sets.filter((x) => x.done && x.type !== 'warmup'), (w) => `${toDisplay(w, settings)}`, scale)}
+              </p>
+            )}
+            {bar && (
+              <button className="lg-plates" onClick={() => setPlateFor(Math.max(0, cur))}>
+                <PlateIcon /> Bar {bar.bar} · {bar.perSide.length ? `${fmtPlates(bar.perSide)} per side` : 'empty bar'}{bar.left > 0 ? ` (${bar.left} short per side)` : ''}
+              </button>
+            )}
+            {log.target && <TargetLine t={log.target} />}
+          </div>
           <div className="lg-chips">
             <button className={`chip-btn ${s.rest ? 'resting' : ''}`} onClick={() => (s.rest ? setTimerBar((v) => !v) : setRestOpen(true))}>
               ◷ Rest <b className="accent">{s.skipRest ? 'Skipped' : fmtClock(s.rest ? restLeft : (log.sets[Math.max(0, cur)]?.rest ?? log.rest)).padStart(5, '0')}</b>
@@ -273,7 +326,7 @@ export function SessionScreen() {
             </div>
           )}
 
-          <div className="lg-table" role="table">
+          <div className={`lg-table ${scale !== 'off' && !cardio ? 'with-effort' : ''}`} role="table">
             <div className="lg-row head" role="row">
               <span>Set</span>
               <span>{cardio ? 'Min' : bw ? `+${settings.unit === 'kg' ? 'Kg' : 'Lbs'}` : settings.unit === 'kg' ? 'Kg' : 'Lbs'}</span>
@@ -283,13 +336,20 @@ export function SessionScreen() {
                   ⓘ
                 </button>
               </span>
+              {scale !== 'off' && !cardio && <span className="eff-h">{scale.toUpperCase()}</span>}
               <span />
             </div>
             {log.sets.map((set, j) => {
               const t = SET_TYPES.find((x) => x.id === set.type)!;
               const state = set.done ? 'logged' : j === cur ? 'current' : 'pending';
               return (
-                <div key={j} className={`lg-row ${state}`} role="row" onClick={() => !set.done && setSel(j)}>
+                <SwipeRow
+                  key={j}
+                  className={`lg-row ${state} ${flashRow === j ? 'flash-copy' : ''}`}
+                  onClick={() => !set.done && setSel(j)}
+                  onDelete={() => removeSet(j)}
+                  onCopy={() => copySet(j)}
+                >
                   <button
                     className={`set-tag t-${set.type}`}
                     onClick={(e) => {
@@ -312,6 +372,19 @@ export function SessionScreen() {
                     />
                   )}
                   {cardio ? <span className="muted">—</span> : <NumInput value={set.reps} onChange={(v) => patchSet(j, { reps: v })} onFocus={() => !set.done && setSel(j)} label={`Set ${j + 1} reps`} />}
+                  {scale !== 'off' && !cardio && (
+                    <button
+                      className={`eff-btn ${set.rir !== undefined ? 'set' : ''}`}
+                      style={set.rir !== undefined ? { ['--h' as string]: effortHue(set.rir) } : undefined}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEffortFor(j);
+                      }}
+                      aria-label={`Set ${j + 1} effort`}
+                    >
+                      {set.rir !== undefined ? effortLabel(set.rir, scale) : scale.toUpperCase()}
+                    </button>
+                  )}
                   <button
                     className={`tick ${set.done ? 'on' : ''}`}
                     onClick={(e) => {
@@ -323,7 +396,7 @@ export function SessionScreen() {
                   >
                     ✓
                   </button>
-                </div>
+                </SwipeRow>
               );
             })}
             <div className="lg-row ghost">
@@ -454,6 +527,22 @@ export function SessionScreen() {
 
       <IntervalSheet open={interval} onClose={() => setIntervalOpen(false)} />
 
+      <PlateSheet open={plateFor !== null} weightLbs={log?.sets[plateFor ?? 0]?.weightLbs ?? 0} settings={settings} onClose={() => setPlateFor(null)} />
+
+      <EffortSheet
+        open={effortFor !== null}
+        scale={scale}
+        value={log?.sets[effortFor ?? 0]?.rir}
+        title={effortFor !== null ? `Set ${effortFor + 1}` : undefined}
+        onClose={() => setEffortFor(null)}
+        onPick={(rir) => {
+          patchSet(effortFor!, { rir });
+          setEffortFor(null);
+        }}
+      />
+
+      <Toast msg={toast} onDone={() => setToast(null)} />
+
       <Sheet open={notes} onClose={() => setNotes(false)} title="Workout notes">
         <textarea
           className="field"
@@ -469,8 +558,9 @@ export function SessionScreen() {
 
       <Sheet open={repsHelp} onClose={() => setRepsHelp(false)} title="Weights and reps">
         <p className="muted">
-          Numbers are prefilled from your last time doing this exercise, or from the plan. Tap any number to change it. The faded row at the
-          bottom is what a new set would start with. Warm-up sets don't count toward volume or your 1RM.
+          Numbers come from your plan's progression rule, or from your last time doing this exercise. Tap any number to change it. The
+          faded row at the bottom is what a new set would start with. Warm-up sets don't count toward volume or your 1RM. Swipe a set left to
+          delete it or right to copy it.
         </p>
       </Sheet>
 
@@ -480,6 +570,7 @@ export function SessionScreen() {
         title={ex?.name}
         actions={[
           { label: 'Add exercise', onClick: addExercises },
+          { label: 'Add warm-up sets', onClick: addWarmups, disabled: !log || cardio },
           { label: 'Replace exercise', onClick: swap, disabled: !log },
           { label: 'Exercise history', onClick: () => log && nav.push({ kind: 'exercise', id: log.exerciseId }), disabled: !log },
           { label: 'Remove from workout', danger: true, onClick: remove, disabled: !log },
@@ -600,3 +691,141 @@ function IntervalSheet({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+
+const KIND_ICON: Record<LogTarget['kind'], string> = { first: '•', up: '↑', reps: '↗', set: '＋', hold: '→', deload: '↓' };
+
+function TargetLine({ t }: { t: LogTarget }) {
+  return (
+    <p className={`lg-target k-${t.kind}`}>
+      <span aria-hidden>{KIND_ICON[t.kind]}</span> <b>{RULE_NAME[t.rule]} progression</b> · {t.reason}
+    </p>
+  );
+}
+
+function PlateIcon() {
+  return (
+    <svg viewBox="0 0 24 12" width="22" height="11" aria-hidden className="plate-ico">
+      <rect x="0" y="5" width="24" height="2" rx="1" />
+      <rect x="4" y="1" width="3" height="10" rx="1" />
+      <rect x="17" y="1" width="3" height="10" rx="1" />
+    </svg>
+  );
+}
+
+const PLATE_HUE: Record<number, number> = { 45: 4, 25: 4, 35: 45, 20: 215, 15: 45, 10: 140, 5: 0, 2.5: 0, 1.25: 0 };
+
+function PlateSheet({ open, weightLbs, settings, onClose }: { open: boolean; weightLbs: number; settings: Settings; onClose: () => void }) {
+  const r = loadBar(weightLbs, settings);
+  const biggest = r ? Math.max(1, ...r.perSide) : 1;
+  return (
+    <Sheet open={open} onClose={onClose} title={`${toDisplay(weightLbs, settings)} ${settings.unit}`} sub="Plates on each side">
+      {!r ? (
+        <p className="muted">Lighter than the bar ({settings.unit === 'kg' ? '20 kg' : '45 lb'}).</p>
+      ) : (
+        <>
+          <svg className="plate-art" viewBox="0 0 300 120" role="img" aria-label={`${fmtPlates(r.perSide)} per side`}>
+            <rect x="0" y="54" width="300" height="12" rx="4" className="pa-bar" />
+            <rect x="96" y="44" width="10" height="32" rx="2" className="pa-collar" />
+            {r.perSide.reduce<{ x: number; el: ReactNode[] }>(
+              (acc, p, i) => {
+                const h = 30 + 80 * (p / biggest);
+                const w = p >= 10 ? 16 : 10;
+                acc.el.push(
+                  <rect
+                    key={i}
+                    x={acc.x}
+                    y={60 - h / 2}
+                    width={w}
+                    height={h}
+                    rx="3"
+                    className="pa-plate"
+                    style={{ ['--h' as string]: PLATE_HUE[p] ?? 200, animationDelay: `${i * 40}ms` }}
+                  />,
+                );
+                return { x: acc.x + w + 2, el: acc.el };
+              },
+              { x: 108, el: [] },
+            ).el}
+          </svg>
+          <p className="center">
+            <b>{r.bar}</b> bar + <b>{fmtPlates(r.perSide)}</b> per side
+          </p>
+          {r.left > 0 && <p className="muted small center">{r.left} {settings.unit} per side can't be made with your plates.</p>}
+          <p className="muted small center">Change the bar and plates you own in Settings.</p>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+function EffortSheet({ open, scale, value, title, onClose, onPick }: { open: boolean; scale: EffortScale; value?: number; title?: string; onClose: () => void; onPick: (rir: number | undefined) => void }) {
+  return (
+    <Sheet open={open} onClose={onClose} title={scale === 'rpe' ? 'Rate of perceived exertion' : 'Reps in reserve'} sub={title}>
+      <div className="eff-list">
+        {EFFORT_LEVELS.map((l) => (
+          <button key={l.rir} className={`eff-item ${value === l.rir ? 'on' : ''}`} onClick={() => onPick(l.rir)}>
+            <span className="eff-badge" style={{ ['--h' as string]: effortHue(l.rir) }}>
+              {effortLabel(l.rir, scale)}
+            </span>
+            <span className="grow">{l.line}</span>
+          </button>
+        ))}
+        {value !== undefined && (
+          <button className="link" onClick={() => onPick(undefined)}>
+            Clear
+          </button>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+// A row that follows a horizontal drag: past the threshold, left deletes and right copies.
+function SwipeRow({ className, onClick, onDelete, onCopy, children }: { className: string; onClick: () => void; onDelete: () => void; onCopy: () => void; children: ReactNode }) {
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<{ x: number; y: number; lock?: 'x' | 'y' } | null>(null);
+  const LIMIT = 84;
+  return (
+    <div className="swipe" data-dir={dx > 0 ? 'copy' : dx < 0 ? 'del' : undefined}>
+      <div className="swipe-under" aria-hidden>
+        <span className={dx > LIMIT ? 'armed' : ''}>⧉ Copy</span>
+        <span className={dx < -LIMIT ? 'armed' : ''}>Delete ✕</span>
+      </div>
+      <div
+        className={className}
+        role="row"
+        style={{ transform: dx ? `translateX(${dx}px)` : undefined, transition: dragging ? 'none' : undefined }}
+        onClick={onClick}
+        onTouchStart={(e) => {
+          start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }}
+        onTouchMove={(e) => {
+          const st = start.current;
+          if (!st) return;
+          const mx = e.touches[0].clientX - st.x;
+          const my = e.touches[0].clientY - st.y;
+          if (!st.lock && Math.hypot(mx, my) > 10) st.lock = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
+          if (st.lock !== 'x' || (e.target as HTMLElement).closest('input:focus')) return;
+          setDragging(true);
+          setDx(Math.max(-130, Math.min(130, mx)));
+        }}
+        onTouchEnd={() => {
+          const d = dx;
+          start.current = null;
+          setDragging(false);
+          setDx(0);
+          if (d < -LIMIT) {
+            tap();
+            onDelete();
+          } else if (d > LIMIT) {
+            tap();
+            onCopy();
+          }
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
