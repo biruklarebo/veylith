@@ -16,7 +16,7 @@ import { SettingsScreen } from './screens/Settings';
 import { PlanDetail, PlanList } from './screens/Find';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'discover', label: 'Discover', icon: '◔' },
+  { id: 'discover', label: 'Home', icon: '⌂' },
   { id: 'workout', label: 'Workout', icon: '☑' },
   { id: 'progress', label: 'Progress', icon: '▦' },
 ];
@@ -151,7 +151,10 @@ export default function App() {
         <nav className="tabbar">
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setUI({ tab: t.id })}>
-              <span className="tab-icon">{t.icon}</span>
+              <span className="tab-icon">
+                {t.icon}
+                {t.id === 'workout' && activeSession && !activeSession.end && <i className="live-dot" aria-label="Workout running" />}
+              </span>
               <span>{t.label}</span>
             </button>
           ))}

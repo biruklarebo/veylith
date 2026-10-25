@@ -11,11 +11,15 @@ export function LineChart({
   format,
   height = 180,
   label,
+  goal,
+  area,
 }: {
   points: Point[];
   format: (v: number) => string;
   height?: number;
   label: string;
+  goal?: number; // dashed target line
+  area?: boolean; // fill under the line
 }) {
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -25,7 +29,7 @@ export function LineChart({
   const H = height;
   const pad = { l: 44, r: 12, t: 12, b: 24 };
   const ts = points.map((p) => p.t);
-  const vs = points.map((p) => p.v);
+  const vs = [...points.map((p) => p.v), ...(goal !== undefined ? [goal] : [])];
   const tMin = Math.min(...ts);
   const tMax = Math.max(...ts);
   let vMin = Math.min(...vs);
@@ -78,6 +82,17 @@ export function LineChart({
           <text x={W - pad.r} y={H - 6} textAnchor="end" className="chart-axis">
             {fmtDate(tMax)}
           </text>
+        )}
+        {area && points.length > 1 && (
+          <path d={`${path} L${x(tMax).toFixed(1)},${H - pad.b} L${x(tMin).toFixed(1)},${H - pad.b} Z`} className="chart-area" />
+        )}
+        {goal !== undefined && (
+          <g>
+            <line x1={pad.l} x2={W - pad.r} y1={y(goal)} y2={y(goal)} className="chart-goal" />
+            <text x={W - pad.r} y={y(goal) - 5} textAnchor="end" className="chart-goal-label">
+              {format(goal)}
+            </text>
+          </g>
         )}
         <path d={path} className="chart-line" />
         {points.map((p, i) => (

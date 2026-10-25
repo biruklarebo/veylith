@@ -25,7 +25,7 @@ const repsSummary = (it: DayItem) => {
 };
 
 // Start a day, replacing any other workout in progress after confirmation.
-function useStartDay() {
+export function useStartDay() {
   const nav = useNav();
   const { activeSession, startSession } = useStore();
   const [pending, setPending] = useState<{ routineId: string; dayId: string } | null>(null);

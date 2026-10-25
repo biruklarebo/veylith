@@ -160,4 +160,5 @@ export interface Settings {
   bar?: { lb: number; kg: number }; // barbell weight in each unit
   plates?: { lb: number[]; kg: number[] }; // plate sizes owned, per unit
   flash?: boolean; // flash the screen when rest ends; unset = on
+  goalWeightLbs?: number; // body-weight goal line
 }

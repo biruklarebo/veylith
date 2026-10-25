@@ -1,7 +1,7 @@
 import { CATALOG, type PlanTemplate } from '../data/catalog';
 import { SEED_EXERCISES } from '../data/exercises';
 import { estDaySeconds, muscleHeat, uid } from './calc';
-import type { DayItem, Equipment, Exercise, Focus, Location, PlanSet, Routine, WorkoutDay } from '../types';
+import type { DayItem, Equipment, Exercise, Focus, Location, PlanSet, Routine, Session, WorkoutDay } from '../types';
 
 const byId = new Map(SEED_EXERCISES.map((e) => [e.id, e]));
 export const HOME_EQUIPMENT: Equipment[] = ['Bodyweight', 'Dumbbell', 'Band', 'Kettlebell', 'Other'];
@@ -206,6 +206,31 @@ export function generateAdaptive(p: AdaptivePrefs, exercises: Exercise[] = SEED_
     location: p.location,
     adaptive: { start: Date.now(), weeks: MESO_WEEKS },
   };
+}
+
+// What the plan says for today. Days pinned to weekdays follow the calendar (no match = rest
+// day, with the next pinned day); otherwise the plan rotates: the day after the last one done.
+export function todayPlan(r: Routine | undefined, sessions: Session[], now = new Date()): { day?: WorkoutDay; rest?: boolean; next?: { day: WorkoutDay; inDays: number }; doneToday: boolean } {
+  if (!r?.days.length) return { doneToday: false };
+  const dow = (now.getDay() + 6) % 7;
+  const today = new Date(now).setHours(0, 0, 0, 0);
+  const pinned = r.days.filter((d) => d.weekday !== undefined);
+  let day: WorkoutDay | undefined;
+  if (pinned.length) {
+    day = pinned.find((d) => d.weekday === dow);
+    if (!day) {
+      const inDays = (d: WorkoutDay) => (d.weekday! - dow + 7) % 7 || 7;
+      const nextDay = [...pinned].sort((a, b) => inDays(a) - inDays(b))[0];
+      return { rest: true, next: { day: nextDay, inDays: inDays(nextDay) }, doneToday: sessions.some((s) => s.start >= today) };
+    }
+  } else {
+    const last = sessions.find((s) => s.routineId === r.id && s.dayId);
+    const doneTodayLast = last && last.start >= today;
+    const i = last ? r.days.findIndex((d) => d.id === last.dayId) : -1;
+    // Finished today's already: keep showing it as done rather than jumping ahead.
+    day = doneTodayLast && i >= 0 ? r.days[i] : r.days[(i + 1) % r.days.length];
+  }
+  return { day, doneToday: sessions.some((s) => s.dayId === day!.id && s.start >= today) };
 }
 
 export { CATALOG };

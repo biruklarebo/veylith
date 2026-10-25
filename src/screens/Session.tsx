@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNav } from '../nav';
 import { findExercise, previousLog, useStore } from '../store';
 import { fmtClock, fmtHMS, fromDisplay, logBest1RM, toDisplay } from '../lib/calc';
@@ -38,7 +38,10 @@ export function SessionScreen() {
   const [effortFor, setEffortFor] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [flashRow, setFlashRow] = useState<number | null>(null);
-  const touch = useRef<number | null>(null);
+  const [washRow, setWashRow] = useState<number | null>(null);
+  const [drag, setDrag] = useState(0);
+  const [enterDir, setEnterDir] = useState(0);
+  const touch = useRef<{ x: number; y: number; t: number; lock?: 'x' | 'y' } | null>(null);
 
   const idx = s ? Math.min(Math.max(0, s.current ?? 0), Math.max(0, s.logs.length - 1)) : 0;
   useEffect(() => setSel(null), [idx]);
@@ -92,11 +95,18 @@ export function SessionScreen() {
 
   const go = (i: number) => {
     if (i < 0 || i >= s.logs.length) return;
+    setEnterDir(i > idx ? 1 : -1);
     updateActive((x) => ({ ...x, current: i }));
   };
   const patchLog = (fn: (l: ExerciseLog) => ExerciseLog, i = idx) =>
     updateActive((x) => ({ ...x, logs: x.logs.map((l, k) => (k === i ? fn(l) : l)) }));
   const patchSet = (j: number, p: Partial<LoggedSet>) => patchLog((l) => ({ ...l, sets: l.sets.map((x, k) => (k === j ? { ...x, ...p } : x)) }));
+  // Functional update so a held stepper reads the latest value on every repeat.
+  const patchSetFn = (j: number, fn: (x: LoggedSet) => Partial<LoggedSet>) => {
+    tap();
+    patchLog((l) => ({ ...l, sets: l.sets.map((x, k) => (k === j ? { ...x, ...fn(x) } : x)) }));
+  };
+  const wStep = fromDisplay(settings.unit === 'kg' ? 2.5 : 5, settings);
 
   const end = () => {
     endSession();
@@ -127,6 +137,8 @@ export function SessionScreen() {
       };
     });
     setSel(null);
+    setWashRow(j);
+    setTimeout(() => setWashRow(null), 700);
     tap();
     if (!s.skipRest && settings.restTimerOn && restSec > 0) setRestRow(j);
   };
@@ -202,14 +214,31 @@ export function SessionScreen() {
   return (
     <div
       className="logger"
-      onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
+      // Swiping between exercises: the body follows the finger (rubber-band at the ends) and
+      // commits past a quarter of the screen or on a quick flick. Set rows own their own swipe.
+      onTouchStart={(e) => {
+        const t = e.target as HTMLElement;
+        touch.current = t.closest('input, .sheet, .lg-row, .stepper-strip, .popover-wrap, .lg-foot') ? null : { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+      }}
+      onTouchMove={(e) => {
+        const st = touch.current;
+        if (!st) return;
+        const dx = e.touches[0].clientX - st.x;
+        const dy = e.touches[0].clientY - st.y;
+        if (!st.lock && Math.hypot(dx, dy) > 10) st.lock = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
+        if (st.lock !== 'x') return;
+        const edge = (dx > 0 && idx === 0) || (dx < 0 && idx === s.logs.length - 1);
+        setDrag(edge ? dx * 0.3 : dx);
+      }}
       onTouchEnd={(e) => {
-        if (touch.current === null) return;
-        const dx = e.changedTouches[0].clientX - touch.current;
+        const st = touch.current;
         touch.current = null;
-        if ((e.target as HTMLElement).closest('input, .sheet, .lg-row')) return;
-        if (dx < -70) go(idx + 1);
-        if (dx > 70) go(idx - 1);
+        setDrag(0);
+        if (!st || st.lock !== 'x') return;
+        const dx = e.changedTouches[0].clientX - st.x;
+        const fast = Math.abs(dx) / Math.max(1, Date.now() - st.t) > 0.5 && Math.abs(dx) > 30;
+        if (Math.abs(dx) < window.innerWidth * 0.25 && !fast) return;
+        go(dx < 0 ? idx + 1 : idx - 1);
       }}
     >
       <section className="lg-hero">
@@ -238,6 +267,11 @@ export function SessionScreen() {
         <Segments s={s} idx={idx} onPick={go} />
       </section>
 
+      <div
+        key={idx}
+        className={`lg-body ${enterDir > 0 ? 'enter-r' : enterDir < 0 ? 'enter-l' : ''}`}
+        style={drag ? { transform: `translateX(${drag}px)`, transition: 'none' } : undefined}
+      >
       {!log ? (
         <Empty title="No exercises in this workout">
           <button className="btn primary" onClick={addExercises}>
@@ -343,9 +377,9 @@ export function SessionScreen() {
               const t = SET_TYPES.find((x) => x.id === set.type)!;
               const state = set.done ? 'logged' : j === cur ? 'current' : 'pending';
               return (
+                <Fragment key={j}>
                 <SwipeRow
-                  key={j}
-                  className={`lg-row ${state} ${flashRow === j ? 'flash-copy' : ''}`}
+                  className={`lg-row ${state} ${flashRow === j ? 'flash-copy' : ''} ${washRow === j ? 'wash' : ''}`}
                   onClick={() => !set.done && setSel(j)}
                   onDelete={() => removeSet(j)}
                   onCopy={() => copySet(j)}
@@ -397,6 +431,21 @@ export function SessionScreen() {
                     ✓
                   </button>
                 </SwipeRow>
+                {j === cur && !set.done && !cardio && (
+                  <div className="stepper-strip">
+                    <div className="st-group">
+                      <HoldButton label={`Less weight, set ${j + 1}`} onStep={() => patchSetFn(j, (x) => ({ weightLbs: Math.max(0, x.weightLbs - wStep) }))}>−</HoldButton>
+                      <span className="muted small">{settings.unit}</span>
+                      <HoldButton label={`More weight, set ${j + 1}`} onStep={() => patchSetFn(j, (x) => ({ weightLbs: x.weightLbs + wStep }))}>+</HoldButton>
+                    </div>
+                    <div className="st-group">
+                      <HoldButton label={`Fewer reps, set ${j + 1}`} onStep={() => patchSetFn(j, (x) => ({ reps: Math.max(0, x.reps - 1) }))}>−</HoldButton>
+                      <span className="muted small">reps</span>
+                      <HoldButton label={`More reps, set ${j + 1}`} onStep={() => patchSetFn(j, (x) => ({ reps: x.reps + 1 }))}>+</HoldButton>
+                    </div>
+                  </div>
+                )}
+                </Fragment>
               );
             })}
             <div className="lg-row ghost">
@@ -413,6 +462,8 @@ export function SessionScreen() {
         </>
       )}
 
+      </div>
+
       <footer className="lg-foot">
         <button className="icon-btn square" onClick={() => setNotes(true)} aria-label="Workout notes">
           ✎
@@ -428,8 +479,13 @@ export function SessionScreen() {
             </button>
           </div>
         ) : (
-          <button className="btn primary big grow" onClick={() => logSet()} disabled={!log}>
+          <button className="btn primary big grow log-btn" onClick={() => logSet()} disabled={!log}>
             {!allDone ? 'Log Set' : last ? 'End Workout' : 'Next Exercise'}
+            {!allDone && curSet && !cardio && (
+              <small>
+                Set {Math.max(0, cur) + 1} · {toDisplay(curSet.weightLbs, settings)} {settings.unit} × {curSet.reps}
+              </small>
+            )}
           </button>
         )}
       </footer>
@@ -603,6 +659,8 @@ function Segments({ s, idx, onPick }: { s: Session; idx: number; onPick: (i: num
 
 function NumInput({ value, onChange, onFocus, decimal, label }: { value: number; onChange: (v: number) => void; onFocus: () => void; decimal?: boolean; label: string }) {
   const [text, setText] = useState<string | null>(null);
+  // A stepper can change the value while this field is focused: show the new number.
+  useEffect(() => setText((t) => (t !== null && parseFloat(t) !== value ? String(value) : t)), [value]);
   return (
     <input
       className="num"
@@ -827,5 +885,41 @@ function SwipeRow({ className, onClick, onDelete, onCopy, children }: { classNam
         {children}
       </div>
     </div>
+  );
+}
+
+// Tap to step once; hold to repeat, speeding up after a moment.
+function HoldButton({ onStep, label, children }: { onStep: () => void; label: string; children: ReactNode }) {
+  const timer = useRef<number | null>(null);
+  const step = useRef(onStep);
+  step.current = onStep;
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+  const run = (delay: number, n: number) => {
+    timer.current = window.setTimeout(() => {
+      step.current();
+      run(n > 6 ? 60 : 120, n + 1);
+    }, delay);
+  };
+  return (
+    <button
+      className="st-btn"
+      aria-label={label}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        step.current();
+        run(450, 0);
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && step.current()}
+    >
+      {children}
+    </button>
   );
 }

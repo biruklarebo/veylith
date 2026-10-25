@@ -50,7 +50,7 @@ interface UI {
   set: (p: Partial<Omit<UI, 'set'>>) => void;
 }
 export const useUI = create<UI>((set) => ({
-  tab: 'workout',
+  tab: 'discover',
   workoutTab: 'planned',
   planTab: 'overview',
   dayId: null,
