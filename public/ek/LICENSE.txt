@@ -1,0 +1,6 @@
+Exercise illustrations in this folder are from Everkinetic (http://everkinetic.com),
+via https://github.com/everkinetic/data, and are licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0):
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Changes: the white background shape was removed and the line colour normalised so the app can recolour the drawings.

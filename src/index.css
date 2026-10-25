@@ -777,3 +777,18 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .swipe > .lg-row.wash { animation: wash .7s ease-out; }
 .log-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
 .log-btn small { font-size: 12px; font-weight: 600; opacity: .75; }
+
+/* ---------- exercise illustrations (two poses, eased) ---------- */
+.ex-art { position: relative; aspect-ratio: 216 / 275; --ink: var(--text); }
+.ex-art span { position: absolute; inset: 0; background: var(--ink); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
+.ex-art .a { animation: pose-a 2.6s ease-in-out infinite; }
+.ex-art .b { animation: pose-b 2.6s ease-in-out infinite; }
+@keyframes pose-a { 0%, 35% { opacity: 1; } 50%, 85% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes pose-b { 0%, 35% { opacity: 0; } 50%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ex-art .b { display: none; } .ex-art .a { opacity: 1 !important; } }
+.lg-ek { position: absolute; top: 14px; bottom: 30px; left: 50%; transform: translateX(-50%); height: calc(100% - 44px); --ink: #e8eefc; }
+.lg-mini { position: absolute; left: 16px; bottom: 34px; width: 54px; height: 110px; opacity: .9; }
+.lg-mini .bm-base { fill: #2c3d66; }
+.lg-mini .bm-off { fill: #3b4f80; }
+.art-card { align-items: center; }
+.detail-ek { width: min(240px, 66%); }

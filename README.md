@@ -26,6 +26,8 @@ Three tabs: **Home · Workout · Progress**.
 - **Logger extras**: last-time line, plates per side for barbell lifts (tap for a plate diagram; bar and owned plates in Settings), *Add warm-up sets* ramp, per-set RIR/RPE, swipe a set left to delete (Undo) or right to copy, −/+ steppers under the current set (hold to repeat), and the area below the hero follows your finger when swiping between exercises. Screen stays awake during a workout and flashes when rest ends.
 - **Muscles card** on Progress: Recovery (hard sets fading with a per-muscle half-life), Volume (Week / 30d / 90d) and Untrained.
 
+Exercise illustrations: 64 exercises show a start/end pose line drawing that eases between the two (logger hero and exercise page), from [Everkinetic](https://github.com/everkinetic/data), CC BY-SA 4.0 (see `public/ek/LICENSE.txt`; credited in Settings → About). Exercises without one show the body map.
+
 Body maps are SVG; theme is navy with an orange accent.
 
 ## Data

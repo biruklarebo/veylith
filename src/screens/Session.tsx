@@ -7,6 +7,7 @@ import { RULE_NAME } from '../lib/progression';
 import { fmtPlates, loadBar, usesPlates, warmupRamp } from '../lib/plates';
 import { EFFORT_LEVELS, effortHue, effortLabel, effortScale, fmtSetsWithEffort } from '../lib/effort';
 import { Figure, exerciseHeat } from '../components/BodyMap';
+import { ExerciseArt, hasArt } from '../components/ExerciseArt';
 import { ActionSheet, Sheet } from '../components/Sheet';
 import { Empty, Toast, type ToastMsg } from '../components/ui';
 import type { EffortScale, ExerciseLog, LogTarget, LoggedSet, Session, SetType, Settings } from '../types';
@@ -242,7 +243,14 @@ export function SessionScreen() {
       }}
     >
       <section className="lg-hero">
-        {ex && <Figure view={[1, 5, 7].includes(ex.bodyPart) ? 'back' : 'front'} heat={exerciseHeat(ex)} fit="meet" className="lg-art" />}
+        {ex && hasArt(ex.id) ? (
+          <>
+            <ExerciseArt exerciseId={ex.id} className="lg-ek" key={ex.id} />
+            <Figure view={[1, 5, 7].includes(ex.bodyPart) ? 'back' : 'front'} heat={exerciseHeat(ex)} fit="meet" className="lg-mini" />
+          </>
+        ) : (
+          ex && <Figure view={[1, 5, 7].includes(ex.bodyPart) ? 'back' : 'front'} heat={exerciseHeat(ex)} fit="meet" className="lg-art" />
+        )}
         <div className="lg-top">
           <button className="icon-btn glass" onClick={nav.pop} aria-label="Back to plan">
             ‹

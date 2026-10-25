@@ -125,6 +125,20 @@ export function SettingsScreen() {
           </label>
         </div>
       </section>
+      <section className="card">
+        <h3>About</h3>
+        <p className="muted small">
+          Exercise illustrations by{' '}
+          <a className="accent" href="https://github.com/everkinetic/data" target="_blank" rel="noreferrer">
+            Everkinetic
+          </a>
+          , licensed{' '}
+          <a className="accent" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">
+            CC BY-SA 4.0
+          </a>
+          , recoloured for the app.
+        </p>
+      </section>
     </div>
   );
 }
