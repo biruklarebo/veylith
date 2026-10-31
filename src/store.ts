@@ -380,10 +380,10 @@ export const useStore = create<State>()(
     {
       name: 'veylith',
       storage: createJSONStorage(() => idbStorage),
-      version: 3,
+      version: 5,
       migrate: (state, version) => {
         let s = state as State;
-        if (version < 3) {
+        if (version < 5) {
           const seed = seedPrograms(s.customExercises ?? [], version);
           const names = Object.fromEntries(SEED_PROGRAMS.map((p) => [p.id, p.name]));
           const curated = (s.curated ?? []).map((p) => (p.builtin && names[p.id] ? { ...p, name: names[p.id] } : p));
