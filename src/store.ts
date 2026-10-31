@@ -6,8 +6,9 @@ import { SEED_ROUTINES } from './data/routines';
 import { logBest1RM, uid } from './lib/calc';
 import { applyPhase, phaseOf } from './lib/plans';
 import { nextTarget, ruleFor } from './lib/progression';
+import { blockFor, currentWeek, daysForWeek, guessExercise, matchExercise, nameKey, type ParsedProgram } from './lib/programImport';
 import type {
-  BodyStat, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
+  BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
 } from './types';
 
 const idbStorage: StateStorage = {
@@ -46,6 +47,7 @@ interface State {
   records: Record<string, ExerciseRecord>;
   bodyStats: BodyStat[];
   photos: ProgressPhoto[];
+  curated: CuratedProgram[];
   settings: Settings;
 
   addCustomExercise: (e: Omit<Exercise, 'id' | 'custom'>) => Exercise;
@@ -71,6 +73,12 @@ interface State {
   addPhoto: (p: ProgressPhoto) => void;
   updatePhoto: (id: string, p: Partial<ProgressPhoto>) => void;
   deletePhoto: (id: string) => void;
+  importProgram: (p: ParsedProgram, source: string) => CuratedProgram;
+  deleteProgram: (id: string) => void;
+  startGuided: (programId: string, choices: Record<string, string>) => Routine | null;
+  refreshGuided: () => void;
+  setGuidedChoice: (routineId: string, slotKey: string, exerciseId: string) => void;
+  setGuidedWeek: (routineId: string, week: number) => void;
   updateSettings: (p: Partial<Settings>) => void;
 }
 
@@ -86,7 +94,7 @@ interface Prefill {
 // is history, otherwise the most recent weights for this exercise, otherwise the plan.
 function logFromPlan(item: DayItem, p: Prefill): ExerciseLog {
   const working = item.sets.find((x) => x.type !== 'warmup') ?? item.sets[0];
-  const base = { exerciseId: item.exerciseId, supersetId: item.supersetId, rest: working?.rest ?? 90 };
+  const base = { exerciseId: item.exerciseId, supersetId: item.supersetId, rest: working?.rest ?? 90, alternatives: item.alternatives, note: item.note };
   const target = nextTarget(item, p.sessions, findExercise(item.exerciseId, p.custom), p.rule, p.settings, { deload: p.deload });
   if (target) {
     const { sets, ...t } = target;
@@ -119,6 +127,7 @@ export const useStore = create<State>()(
       records: {},
       bodyStats: [],
       photos: [],
+      curated: [],
       settings: { unit: 'lb', defaultRest: 90, restTimerOn: true },
 
       addCustomExercise: (e) => {
@@ -157,6 +166,7 @@ export const useStore = create<State>()(
         })),
 
       startSession: (routineId, dayId) => {
+        getState().refreshGuided();
         const { routines, sessions, settings, customExercises } = getState();
         const routine = routines.find((r) => r.id === routineId);
         const planned = routine?.days.find((d) => d.id === dayId);
@@ -269,6 +279,84 @@ export const useStore = create<State>()(
       updatePhoto: (id, p) =>
         setState((s) => ({ photos: s.photos.map((x) => (x.id === id ? { ...x, ...p } : x)).sort((a, b) => a.date.localeCompare(b.date)) })),
       deletePhoto: (id) => setState((s) => ({ photos: s.photos.filter((x) => x.id !== id) })),
+      importProgram: (parsed, source) => {
+        // Match every exercise name to the library; names it doesn't know become custom exercises.
+        const { customExercises } = getState();
+        const library = [...SEED_EXERCISES, ...customExercises];
+        const ids: Record<string, string> = {};
+        const added: Exercise[] = [];
+        for (const b of parsed.blocks)
+          for (const d of b.days)
+            for (const slot of d.slots)
+              for (const name of slot.options) {
+                const k = nameKey(name);
+                if (ids[k]) continue;
+                const known = [...library, ...added].find((e) => nameKey(e.name) === k) ?? matchExercise(name, library);
+                if (known) ids[k] = known.id;
+                else {
+                  const ex: Exercise = { ...guessExercise(name), id: `custom-${uid()}`, custom: true };
+                  added.push(ex);
+                  ids[k] = ex.id;
+                }
+              }
+        const program: CuratedProgram = { id: uid(), name: parsed.name, source, weeks: parsed.weeks, blocks: parsed.blocks, ids, imported: Date.now() };
+        setState((s) => ({ curated: [...s.curated, program], customExercises: [...s.customExercises, ...added] }));
+        return program;
+      },
+      deleteProgram: (id) => setState((s) => ({ curated: s.curated.filter((p) => p.id !== id) })),
+      startGuided: (programId, choices) => {
+        const p = getState().curated.find((x) => x.id === programId);
+        if (!p) return null;
+        const base: Routine = {
+          id: uid(),
+          name: p.name,
+          description: `Imported from ${p.source}. ${p.weeks} weeks, follows the week you're on.`,
+          difficulty: 2,
+          focus: 'general',
+          daysPerWeek: p.blocks[0].days.length,
+          days: [],
+          author: 'Imported',
+          progression: 'off',
+          guided: { programId, start: new Date().setHours(0, 0, 0, 0), choices, block: blockFor(p, 1).label },
+        };
+        const r = { ...base, days: daysForWeek(p, base, 1) };
+        setState((s) => ({ routines: [...s.routines, r], activeRoutineId: r.id }));
+        return r;
+      },
+      refreshGuided: () =>
+        setState((s) => {
+          let changed = false;
+          const routines = s.routines.map((r) => {
+            const p = r.guided && s.curated.find((x) => x.id === r.guided!.programId);
+            if (!p || !r.guided) return r;
+            const label = blockFor(p, currentWeek(r)).label;
+            if (label === r.guided.block) return r;
+            changed = true;
+            const next = { ...r, guided: { ...r.guided, block: label } };
+            return { ...next, days: daysForWeek(p, next, currentWeek(r)) };
+          });
+          return changed ? { routines } : {};
+        }),
+      setGuidedChoice: (routineId, slotKey, exerciseId) =>
+        setState((s) => ({
+          routines: s.routines.map((r) => {
+            const p = r.guided && s.curated.find((x) => x.id === r.guided!.programId);
+            if (r.id !== routineId || !p || !r.guided) return r;
+            const next = { ...r, guided: { ...r.guided, choices: { ...r.guided.choices, [slotKey]: exerciseId } } };
+            return { ...next, days: daysForWeek(p, next, currentWeek(next)) };
+          }),
+        })),
+      setGuidedWeek: (routineId, week) =>
+        setState((s) => ({
+          routines: s.routines.map((r) => {
+            const p = r.guided && s.curated.find((x) => x.id === r.guided!.programId);
+            if (r.id !== routineId || !p || !r.guided) return r;
+            const w = Math.max(1, Math.min(p.weeks, week));
+            const start = new Date().setHours(0, 0, 0, 0) - (w - 1) * 7 * 864e5;
+            const next = { ...r, guided: { ...r.guided, start, block: blockFor(p, w).label } };
+            return { ...next, days: daysForWeek(p, next, w) };
+          }),
+        })),
       updateSettings: (p) => setState((s) => ({ settings: { ...s.settings, ...p } })),
     }),
     { name: 'veylith', storage: createJSONStorage(() => idbStorage), version: 1 },

@@ -197,8 +197,20 @@ export function SessionScreen() {
     pickExercises('Add to workout', (ids) =>
       useStore.getState().updateActive((x) => ({ ...x, logs: [...x.logs, ...ids.map((id) => freshLog(id))], current: x.logs.length })),
     );
+  const [subsOpen, setSubsOpen] = useState(false);
+  const swapTo = (exerciseId: string) => {
+    useStore.getState().updateActive((x) => ({ ...x, logs: x.logs.map((l, k) => (k === idx ? { ...freshLog(exerciseId, l), alternatives: l.alternatives, note: l.note } : l)) }));
+    // Remember the pick for imported programs so the next session uses it too.
+    const r = useStore.getState().routines.find((x) => x.id === s.routineId);
+    const first = log?.alternatives?.[0];
+    if (r?.guided && first) {
+      const p = useStore.getState().curated.find((x) => x.id === r.guided!.programId);
+      const slotKey = p && Object.entries(p.ids).find(([, v]) => v === first)?.[0];
+      if (slotKey) useStore.getState().setGuidedChoice(r.id, slotKey, exerciseId);
+    }
+  };
   const swap = () =>
-    pickExercises('Replace exercise', (ids) => {
+    log?.alternatives?.length ? setSubsOpen(true) : pickExercises('Replace exercise', (ids) => {
       if (!ids[0]) return;
       useStore.getState().updateActive((x) => ({ ...x, logs: x.logs.map((l, k) => (k === idx ? freshLog(ids[0], l) : l)) }));
     });
@@ -312,6 +324,7 @@ export function SessionScreen() {
               </button>
             )}
             {log.target && <TargetLine t={log.target} />}
+            {log.note && <p className="lg-note">{log.note}</p>}
           </div>
           <div className="lg-chips">
             <button className={`chip-btn ${s.rest ? 'resting' : ''}`} onClick={() => (s.rest ? setTimerBar((v) => !v) : setRestOpen(true))}>
@@ -603,6 +616,18 @@ export function SessionScreen() {
           patchSet(effortFor!, { rir });
           setEffortFor(null);
         }}
+      />
+
+      <ActionSheet
+        open={subsOpen}
+        onClose={() => setSubsOpen(false)}
+        title="Swap for"
+        actions={[
+          ...(log?.alternatives ?? [])
+            .filter((id) => id !== log?.exerciseId)
+            .map((id) => ({ label: findExercise(id, customExercises)?.name ?? id, onClick: () => swapTo(id) })),
+          { label: 'Search all exercises…', onClick: () => pickExercises('Replace exercise', (ids) => ids[0] && swapTo(ids[0])) },
+        ]}
       />
 
       <Toast msg={toast} onDone={() => setToast(null)} />

@@ -9,6 +9,7 @@ import {
 import { ExerciseThumb, Figure } from '../components/BodyMap';
 import { estDaySeconds, fmtEst, uid } from '../lib/calc';
 import { MuscleShares } from './Workouts';
+import { CuratedSection } from './Curated';
 import { Sheet } from '../components/Sheet';
 import { Empty, Header } from '../components/ui';
 import { BODY_PARTS, type Focus, type Location, type Routine, type WorkoutDay } from '../types';
@@ -116,6 +117,8 @@ export function FindHome() {
       ) : (
         <>
           <CycleCard />
+
+          <CuratedSection />
 
           <section className="disc-sec">
             <h2 className="disc-h">Browse by goal</h2>

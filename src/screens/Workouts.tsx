@@ -7,6 +7,7 @@ import { BodyMap, ExerciseThumb, MuscleThumb } from '../components/BodyMap';
 import { ActionSheet, Sheet, type Action } from '../components/Sheet';
 import { Empty } from '../components/ui';
 import { FindHome } from './Find';
+import { GuidedWeek } from './Curated';
 import { BODY_PARTS, EQUIPMENT, WEEKDAYS, type DayItem, type Equipment, type Exercise, type Routine, type WorkoutDay } from '../types';
 
 
@@ -116,6 +117,7 @@ function Planned() {
           <div className="hero-title">
             <span className="eyebrow hero-eyebrow">Current program</span>
             <h1>{r.name}</h1>
+            <GuidedWeek r={r} />
           </div>
           <button className="btn glass" onClick={() => setSwitcher(true)}>
             ⇄ Switch

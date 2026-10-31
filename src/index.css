@@ -935,3 +935,17 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .done-days span { aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--muted); background: var(--surface-2); animation: ws-pop var(--med) var(--ease) both; }
 .done-days span.on { background: var(--accent); color: var(--accent-ink); }
 .done-foot { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(560px, 100%); display: flex; gap: 12px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 28%); z-index: 6; }
+
+/* ---------- curated (imported) programs ---------- */
+.pd2-name { width: 100%; background: none; border: 0; padding: 0; margin: 4px 0 8px; color: #fff; font-size: 26px; font-weight: 800; line-height: 1.1; }
+.pd2-name:focus { outline: none; border-bottom: 2px solid rgb(255 255 255 / .5); }
+.slot-list { list-style: none; margin: 0; padding: 0 12px 12px; display: flex; flex-direction: column; }
+.slot { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.slot-opts { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 52px; }
+.slot-opts .chip { font-size: 12px; padding: 5px 10px; }
+.slot-note { margin-left: 52px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 13px; color: var(--muted); animation: rise var(--fast) var(--ease); }
+.ss-tag { display: inline-block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+.small-ico { width: 32px; height: 32px; font-size: 16px; }
+.guided-week { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; color: rgb(255 255 255 / .9); }
+.guided-week .icon-btn { width: 30px; height: 30px; font-size: 16px; }
+.lg-note { color: var(--muted); font-size: 13px; padding: 6px 10px; border-left: 2px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; }

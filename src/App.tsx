@@ -15,6 +15,7 @@ import { ExerciseDetail, ExerciseLibrary } from './screens/Exercises';
 import { SettingsScreen } from './screens/Settings';
 import { PlanDetail, PlanList } from './screens/Find';
 import { CompareScreen, PhotosScreen } from './screens/Photos';
+import { CuratedDetail } from './screens/Curated';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'discover', label: 'Home', icon: '⌂' },
@@ -23,7 +24,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 // Screens that take over the whole viewport (no tab bar, no workout bar).
-const FULL = new Set<Screen['kind']>(['session', 'review', 'celebrate', 'picker', 'plan', 'compare']);
+const FULL = new Set<Screen['kind']>(['session', 'review', 'celebrate', 'picker', 'plan', 'compare', 'curated']);
 
 function renderScreen(s: Screen) {
   switch (s.kind) {
@@ -57,6 +58,8 @@ function renderScreen(s: Screen) {
       return <PhotosScreen />;
     case 'compare':
       return <CompareScreen a={s.a} b={s.b} />;
+    case 'curated':
+      return <CuratedDetail id={s.id} />;
   }
 }
 
@@ -80,6 +83,10 @@ export default function App() {
     const t = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, [activeSession]);
+  // Imported programs move to the next phase as the weeks go by.
+  useEffect(() => {
+    if (hydrated) useStore.getState().refreshGuided();
+  }, [hydrated, tab]);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [stack.length, tab]);

@@ -28,7 +28,8 @@ export type Screen =
   | { kind: 'settings' }
   | { kind: 'history'; id: string }
   | { kind: 'photos' }
-  | { kind: 'compare'; a: string; b: string };
+  | { kind: 'compare'; a: string; b: string }
+  | { kind: 'curated'; id: string };
 
 export type Tab = 'discover' | 'workout' | 'progress';
 
