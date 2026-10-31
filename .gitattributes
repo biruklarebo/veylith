@@ -1,0 +1,2 @@
+# A CRLF shebang stops scripts running outside Windows.
+*.sh text eol=lf

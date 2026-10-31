@@ -1,0 +1,17 @@
+# Every container in the stack lives here. Each one gets its own top-level
+# folder with its Dockerfile, and stack.sh controls it automatically.
+# Services reach each other by service name (e.g. http://frontend:8080).
+name: veylith
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8088}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
