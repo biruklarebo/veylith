@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNav } from '../nav';
 import { doneLogs, findExercise, findPRs, previousLog, useStore, type FinishResult } from '../store';
 import { itemForLog, nextTarget } from '../lib/progression';
-import { dayKey, fmtHMS, muscleHeat, oneRepMax, ordinal, sessionVolume, toDisplay, volumeComparison, weekStreak } from '../lib/calc';
+import { fmtHMS, muscleHeat, oneRepMax, ordinal, sessionVolume, toDisplay, volumeComparison, weekStreak } from '../lib/calc';
 import { BodyMap, ExerciseThumb } from '../components/BodyMap';
 import { ActionSheet, Sheet } from '../components/Sheet';
 import { MuscleShares } from './Workouts';
@@ -328,176 +328,247 @@ function RpeSheet({ open, value, onClose, onSave }: { open: boolean; value?: num
   );
 }
 
-type CardKind = 'compare' | 'calendar' | 'muscles' | 'list';
+// Counts up to `to` once on mount (instant under reduced motion).
+function useCountUp(to: number, ms = 700) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return setV(to);
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setV(to * (1 - (1 - k) ** 3));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  return v;
+}
+
+function CountTile({ label, value, fmt, delay }: { label: string; value: number; fmt: (n: number) => string; delay: number }) {
+  const v = useCountUp(value);
+  return (
+    <div className="done-tile" style={{ animationDelay: `${delay}ms` }}>
+      <b>{fmt(v)}</b>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
+  x: (i * 37) % 100,
+  d: (i % 7) * 70,
+  r: (i * 53) % 360,
+  c: ['var(--accent)', 'var(--good)', 'var(--info)', 'var(--warn)', '#fff'][i % 5],
+}));
+
+// Draws a shareable summary image (no external assets) and hands it to the share sheet,
+// or downloads it when sharing files isn't supported.
+async function shareImage(opts: { title: string; sub: string; stats: [string, string][]; footer: string }) {
+  const W = 1080;
+  const H = 1350;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue('--accent').trim() || '#ff8a3d';
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#16224a');
+  bg.addColorStop(1, '#070b18');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,0.035)';
+  g.lineWidth = 18;
+  for (let x = -H; x < W; x += 60) {
+    g.beginPath();
+    g.moveTo(x, H);
+    g.lineTo(x + H, 0);
+    g.stroke();
+  }
+  g.fillStyle = accent;
+  g.beginPath();
+  g.arc(140, 170, 56, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#1a0e05';
+  g.lineWidth = 14;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.moveTo(112, 172);
+  g.lineTo(134, 194);
+  g.lineTo(170, 150);
+  g.stroke();
+  g.fillStyle = '#fff';
+  g.font = '800 84px system-ui, -apple-system, sans-serif';
+  g.fillText(opts.title, 84, 340, W - 168);
+  g.fillStyle = 'rgba(255,255,255,0.7)';
+  g.font = '500 40px system-ui, -apple-system, sans-serif';
+  g.fillText(opts.sub, 84, 405, W - 168);
+  opts.stats.forEach(([label, value], i) => {
+    const x = 84 + (i % 2) * 468;
+    const y = 520 + Math.floor(i / 2) * 260;
+    g.fillStyle = 'rgba(255,255,255,0.07)';
+    g.beginPath();
+    g.roundRect(x, y, 444, 220, 36);
+    g.fill();
+    g.fillStyle = '#fff';
+    g.font = '800 88px system-ui, -apple-system, sans-serif';
+    g.fillText(value, x + 36, y + 120, 380);
+    g.fillStyle = 'rgba(255,255,255,0.6)';
+    g.font = '600 34px system-ui, -apple-system, sans-serif';
+    g.fillText(label, x + 36, y + 178);
+  });
+  g.fillStyle = accent;
+  g.font = '700 40px system-ui, -apple-system, sans-serif';
+  g.fillText(opts.footer, 84, H - 150, W - 168);
+  g.fillStyle = 'rgba(255,255,255,0.5)';
+  g.font = '800 36px system-ui, -apple-system, sans-serif';
+  g.fillText('VEYLITH', 84, H - 84);
+  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+  if (!blob) return 'failed';
+  const file = new File([blob], 'veylith-workout.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: opts.title });
+      return 'shared';
+    } catch {
+      return 'dismissed';
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return 'downloaded';
+}
 
 export function Celebrate({ result }: { result: FinishResult }) {
   const nav = useNav();
   const { sessions, customExercises, settings } = useStore();
+  const [note, setNote] = useState('');
   const s = result.session;
-  const [card, setCard] = useState<CardKind>('compare');
-  const [picked, setPicked] = useState<CardKind[]>(['compare', 'calendar', 'muscles', 'list']);
-  const [shared, setShared] = useState('');
   const volume = sessionVolume(s);
+  const sets = s.logs.reduce((n, l) => n + l.sets.length, 0);
+  const reps = s.logs.reduce((n, l) => n + l.sets.reduce((a, x) => a + x.reps, 0), 0);
+  const minutes = Math.max(1, Math.round((s.end! - s.start) / 60000));
   const cmp = volumeComparison(volume, s.start);
   const heat = sessionHeat(s.logs, customExercises);
-  const vol = `${Math.round(toDisplay(volume, settings))} ${unitLabel(settings)}`;
+  const u = unitLabel(settings);
+  const streak = weekStreak(sessions);
+  const monday = new Date();
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const thisWeek = new Set(sessions.filter((x) => x.start >= monday.getTime()).map((x) => (new Date(x.start).getDay() + 6) % 7));
+  const lifted = volume > 0;
 
   const share = async () => {
-    const lines = [`${s.name} — ${ordinal(result.number)} workout`];
-    if (picked.includes('compare')) lines.push(`${vol} lifted, that's like ${cmp.count} ${cmp.name} ${cmp.emoji}`);
-    lines.push(`Duration ${fmtHMS(s.end! - s.start)} · ${s.logs.length} exercises · ${result.prs.length} records`);
-    if (picked.includes('calendar')) lines.push(`${weekStreak(sessions)}-week streak`);
-    if (picked.includes('list'))
-      lines.push(...s.logs.map((l) => `• ${findExercise(l.exerciseId, customExercises)?.name} ${l.sets.length}x`));
-    const text = lines.join('\n');
-    try {
-      if (navigator.share) await navigator.share({ title: s.name, text });
-      else {
-        await navigator.clipboard.writeText(text);
-        setShared('Copied to clipboard');
-      }
-    } catch {
-      /* share sheet dismissed */
-    }
+    const r = await shareImage({
+      title: s.name,
+      sub: `${ordinal(result.number)} workout · ${new Date(s.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`,
+      stats: [
+        ['minutes', String(minutes)],
+        ['sets', String(sets)],
+        lifted ? [`${u} lifted`, Math.round(toDisplay(volume, settings)).toLocaleString()] : ['reps', String(reps)],
+        ['new records', String(result.prs.length)],
+      ],
+      footer: streak > 1 ? `${streak}-week streak` : lifted && cmp.count >= 1 ? `That's about ${Math.round(cmp.count)} ${cmp.name.toLowerCase()} ${cmp.emoji}` : 'Showed up. That counts.',
+    });
+    if (r === 'downloaded') setNote('Image saved to your downloads');
+    if (r === 'failed') setNote("Couldn't create the image");
   };
 
-  const cards: { id: CardKind; node: React.ReactNode }[] = [
-    { id: 'compare', node: <CompareCard s={s} vol={vol} cmp={cmp} records={result.prs.length} /> },
-    { id: 'calendar', node: <CalendarCard sessions={sessions} /> },
-    {
-      id: 'muscles',
-      node: (
-        <div className="share-card pad">
-          <p className="muted small">{new Date(s.start).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-          <b className="accent">{s.name}</b>
-          <BodyMap heat={heat} />
-          <MuscleShares heat={heat} />
-        </div>
-      ),
-    },
-    {
-      id: 'list',
-      node: (
-        <div className="share-card pad">
-          <b className="accent">{s.name}</b>
-          <p className="muted small">
-            {fmtHMS(s.end! - s.start)} · {vol}
-          </p>
-          <ul className="mini-list">
-            {s.logs.map((l, i) => (
-              <li key={i}>
-                <ExerciseThumb ex={findExercise(l.exerciseId, customExercises)} size={28} />
-                <span className="grow">{findExercise(l.exerciseId, customExercises)?.name}</span>
-                <span className="accent">{l.sets.length}x</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <div className="page celebrate">
-      <button className="insight" onClick={() => nav.reset('progress')}>
-        <span className="sparkles">✦</span>
-        <span className="grow">
-          <b>Great job!</b>
-          <span className="muted block">See how this workout moved your progress</span>
-        </span>
-        <span>→</span>
-      </button>
-      <span className="count-chip">{ordinal(result.number)} workout</span>
+    <div className="page done">
+      <section className="done-hero">
+        <div className="confetti" aria-hidden>
+          {CONFETTI.map((p, i) => (
+            <i key={i} style={{ left: `${p.x}%`, animationDelay: `${p.d}ms`, background: p.c, ['--r' as string]: `${p.r}deg` }} />
+          ))}
+        </div>
+        <svg viewBox="0 0 100 100" className="done-ring" aria-hidden>
+          <circle cx="50" cy="50" r="44" className="ring-bg" />
+          <circle cx="50" cy="50" r="44" className="ring-fg" />
+          <path d="M33 51l11 11 23-25" className="ring-check" />
+        </svg>
+        <span className="eyebrow">{ordinal(result.number)} workout</span>
+        <h1>{s.name}</h1>
+        <p className="muted">
+          {new Date(s.start).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })} · {minutes} min
+        </p>
+      </section>
 
-      <div className="share-main">{cards.find((c) => c.id === card)!.node}</div>
-
-      <div className="thumbs">
-        {cards.map((c) => (
-          <div key={c.id} className={`thumb ${card === c.id ? 'on' : ''}`}>
-            <button className="thumb-view" onClick={() => setCard(c.id)} aria-label={`Show ${c.id} card`}>
-              <div className="thumb-scale">{c.node}</div>
-            </button>
-            <button
-              className={`thumb-check ${picked.includes(c.id) ? 'on' : ''}`}
-              onClick={() => setPicked((p) => (p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id]))}
-              aria-label={`Include ${c.id} card when sharing`}
-            >
-              ✓
-            </button>
-          </div>
-        ))}
+      <div className="done-tiles">
+        <CountTile label="minutes" value={minutes} fmt={(n) => String(Math.round(n))} delay={0} />
+        <CountTile label="sets" value={sets} fmt={(n) => String(Math.round(n))} delay={60} />
+        {lifted ? (
+          <CountTile label={`${u} lifted`} value={toDisplay(volume, settings)} fmt={(n) => Math.round(n).toLocaleString()} delay={120} />
+        ) : (
+          <CountTile label="reps" value={reps} fmt={(n) => String(Math.round(n))} delay={120} />
+        )}
+        <CountTile label="new records" value={result.prs.length} fmt={(n) => String(Math.round(n))} delay={180} />
       </div>
-      {shared && <p className="muted small center">{shared}</p>}
 
-      <div className="row gap cel-foot">
-        <button className="btn soft big" onClick={share}>
+      {lifted && cmp.count >= 1 && (
+        <p className="done-fun">
+          <span aria-hidden>{cmp.emoji}</span> That's about <b>{Math.round(cmp.count)}</b> {cmp.name.toLowerCase()}
+        </p>
+      )}
+
+      {result.prs.length > 0 && (
+        <section className="card done-prs">
+          <h3>New records</h3>
+          {result.prs.map((p) => (
+            <div key={p.exerciseId} className="row gap">
+              <span className="pr-medal" aria-hidden>
+                ★
+              </span>
+              <span className="grow">{findExercise(p.exerciseId, customExercises)?.name}</span>
+              <span className="muted small">{toDisplay(p.previous, settings)} →</span>
+              <b className="accent">
+                {toDisplay(p.oneRm, settings)} {u}
+              </b>
+            </div>
+          ))}
+          <small className="muted">Estimated one-rep max</small>
+        </section>
+      )}
+
+      <section className="card done-muscles">
+        <h3>Muscles worked</h3>
+        <div className="row gap">
+          <BodyMap heat={heat} className="done-map" />
+          <div className="grow">
+            <MuscleShares heat={heat} />
+          </div>
+        </div>
+      </section>
+
+      <section className="card done-week">
+        <div className="row">
+          <h3 className="grow">This week</h3>
+          {streak > 0 && <span className="streak-chip">🔥 {streak} week{streak > 1 ? 's' : ''}</span>}
+        </div>
+        <div className="done-days">
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+            <span key={i} className={thisWeek.has(i) ? 'on' : ''} style={{ animationDelay: `${300 + i * 40}ms` }}>
+              {thisWeek.has(i) ? '✓' : d}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {note && <p className="muted small center">{note}</p>}
+
+      <div className="done-foot">
+        <button className="btn outline big" onClick={share}>
           Share
         </button>
         <button className="btn primary big grow" onClick={() => nav.reset('workout')}>
           Done
         </button>
       </div>
-    </div>
-  );
-}
-
-function CompareCard({ s, vol, cmp, records }: { s: Session; vol: string; cmp: ReturnType<typeof volumeComparison>; records: number }) {
-  return (
-    <div className="share-card">
-      <div className="cmp-art">
-        <span>{cmp.emoji}</span>
-      </div>
-      <p className="cmp-line">
-        <b>{vol}</b> <span className="muted">lifted, that's like</span>
-      </p>
-      <p className="cmp-big accent">
-        {cmp.count} {cmp.name}
-      </p>
-      <div className="cmp-stats">
-        <div>
-          <span>Duration</span>
-          <b>{fmtHMS(s.end! - s.start)}</b>
-        </div>
-        <div>
-          <span>Exercises</span>
-          <b>{s.logs.length}</b>
-        </div>
-        <div>
-          <span>Records</span>
-          <b>{records}</b>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CalendarCard({ sessions }: { sessions: Session[] }) {
-  const d = new Date();
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  const lead = first.getDay();
-  const days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  const on = new Set(sessions.map((s) => dayKey(s.start)));
-  return (
-    <div className="share-card pad">
-      <p className="muted small">{d.getFullYear()}</p>
-      <b className="accent">{d.toLocaleDateString(undefined, { month: 'long' })}</b>
-      <div className="dots-cal">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((x, i) => (
-          <span key={i} className="muted small">
-            {x}
-          </span>
-        ))}
-        {Array.from({ length: lead }, (_, i) => (
-          <span key={`l${i}`} />
-        ))}
-        {Array.from({ length: days }, (_, i) => {
-          const k = dayKey(new Date(d.getFullYear(), d.getMonth(), i + 1));
-          return <span key={i} className={`dot ${on.has(k) ? 'on' : ''}`}>{on.has(k) ? '✓' : ''}</span>;
-        })}
-      </div>
-      <p className="muted small">
-        Current streak <b>{weekStreak(sessions)} weeks</b>
-      </p>
     </div>
   );
 }
