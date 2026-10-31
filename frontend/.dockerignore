@@ -1,0 +1,9 @@
+.dockerignore
+Dockerfile
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+.env
+.env.*
