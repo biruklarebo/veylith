@@ -949,3 +949,19 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .guided-week { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; color: rgb(255 255 255 / .9); }
 .guided-week .icon-btn { width: 30px; height: 30px; font-size: 16px; }
 .lg-note { color: var(--muted); font-size: 13px; padding: 6px 10px; border-left: 2px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0; }
+
+/* home: week nav, today map, choose-other */
+.week-nav { display: flex; align-items: center; gap: 6px; }
+.week-nav .icon-btn { width: 34px; height: 34px; }
+.today-name { font-size: 19px; }
+.today-map { flex: none; display: flex; gap: 2px; width: 74px; }
+.today-map .bm { height: 64px; width: auto; }
+.choose-other { align-self: center; padding: 4px 8px; }
+.choose-map { flex: none; display: flex; gap: 2px; width: 52px; }
+.choose-map .bm { height: 46px; width: auto; }
+.bw-card { gap: 8px; }
+.bw-goal { font-weight: 700; color: var(--warn); padding: 4px 6px; }
+.bw-log { padding: 4px 6px; }
+.bw-goal-line { color: var(--warn); font-size: 14px; font-weight: 600; }
+.bw-trend { color: var(--muted); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+.bw-all { align-self: flex-end; padding: 2px 4px; }

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useNav, useUI } from '../nav';
 import { findExercise, useExercises, useStore } from '../store';
 import { dayKey, estDaySeconds, fmtEst, fmtHMS, muscleHeat, weekStreak } from '../lib/calc';
 import { todayPlan } from '../lib/plans';
 import { useNow } from '../lib/alarm';
-import { Figure, MuscleThumb } from '../components/BodyMap';
+import { BodyMap, Figure } from '../components/BodyMap';
+import { BodyWeightCard } from '../components/BodyWeightCard';
+import { Sheet } from '../components/Sheet';
 import { useStartDay } from './Workouts';
 import { BODY_PARTS, type Exercise, type WorkoutDay } from '../types';
 
@@ -33,6 +36,8 @@ export function Discover() {
       </header>
 
       <TodayCard />
+
+      <BodyWeightCard />
 
       <button className="search fake" onClick={() => nav.push({ kind: 'library' })}>
         ⌕ Search {exercises.length} exercises
@@ -80,26 +85,35 @@ function TodayCard() {
   const { routines, activeRoutineId, sessions, activeSession, customExercises } = useStore();
   const { start, confirm } = useStartDay();
   const now = useNow(activeSession ? 1000 : 60000);
+  const [weekOff, setWeekOff] = useState(0);
+  const [choose, setChoose] = useState(false);
   const routine = routines.find((r) => r.id === activeRoutineId);
   const plan = todayPlan(routine, sessions);
   const streak = weekStreak(sessions);
 
   const monday = new Date(now);
   monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + weekOff * 7);
   const done = new Map<string, string>();
   for (const s of sessions) if (!done.has(dayKey(s.start))) done.set(dayKey(s.start), s.id);
   const pinned = new Set(routine?.days.filter((d) => d.weekday !== undefined).map((d) => d.weekday!));
   const todayKey = dayKey(now);
+  const label = weekOff === 0 ? 'This week' : weekOff === -1 ? 'Last week' : weekOff === 1 ? 'Next week' : monday.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
   const day = plan.day;
   return (
     <section className="card today-card">
-      <div className="row">
-        <h3 className="grow">This week</h3>
-        {streak > 0 && <span className="streak-chip">🔥 {streak} week{streak > 1 ? 's' : ''}</span>}
+      <div className="week-nav">
+        <button className="icon-btn" onClick={() => setWeekOff((w) => w - 1)} aria-label="Previous week">
+          ‹
+        </button>
+        <span className="grow center muted">{label}</span>
+        {streak > 0 && weekOff === 0 && <span className="streak-chip">🔥 {streak}</span>}
+        <button className="icon-btn" onClick={() => setWeekOff((w) => w + 1)} aria-label="Next week">
+          ›
+        </button>
       </div>
-      <div className="week-strip">
+      <div className="week-strip" key={weekOff}>
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date(monday);
           d.setDate(monday.getDate() + i);
@@ -107,8 +121,8 @@ function TodayCard() {
           const sid = done.get(k);
           const cls = [k === todayKey ? 'today' : '', sid ? 'done' : '', !sid && pinned.has(i) && k >= todayKey ? 'planned' : ''].join(' ');
           return (
-            <button key={i} className={`ws-day ${cls}`} style={{ animationDelay: `${i * 30}ms` }} disabled={!sid} onClick={() => sid && nav.push({ kind: 'history', id: sid })} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric' }) + (sid ? ', workout logged' : '')}>
-              <span>{d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span>
+            <button key={i} className={`ws-day ${cls}`} style={{ animationDelay: `${i * 30}ms` }} disabled={!sid} onClick={() => sid && nav.push({ kind: 'history', id: sid })} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (sid ? ', workout logged' : '')}>
+              <span>{d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2).toUpperCase()}</span>
               <b>{d.getDate()}</b>
               <i />
             </button>
@@ -130,14 +144,14 @@ function TodayCard() {
         </div>
       ) : routine && day ? (
         <div className="today-row">
-          <MuscleThumb heat={dayHeat(day, customExercises)} className="today-thumb" />
           <div className="grow">
             <span className="eyebrow">{plan.doneToday ? 'Done today ✓' : 'Today'}</span>
-            <b className="block">{day.name}</b>
+            <b className="block today-name">{day.name}</b>
             <span className="muted small">
-              {day.items.length} exercises · ~{fmtEst(estDaySeconds(day))} · {routine.name}
+              {day.items.length} exercises · ~{fmtEst(estDaySeconds(day))}
             </span>
           </div>
+          <BodyMap heat={dayHeat(day, customExercises)} className="today-map" />
           <button className={`btn today-go ${plan.doneToday ? '' : 'primary'}`} disabled={!day.items.length} onClick={() => start(routine.id, day.id)}>
             {plan.doneToday ? 'Again' : 'Start'}
           </button>
@@ -150,25 +164,67 @@ function TodayCard() {
             <b className="block">Next: {plan.next.day.name}</b>
             <span className="muted small">{plan.next.inDays === 1 ? 'Tomorrow' : `In ${plan.next.inDays} days`}</span>
           </div>
-          <button className="btn today-go" onClick={() => start(routine.id, plan.next!.day.id)}>
-            Train anyway
-          </button>
         </div>
       ) : (
         <div className="today-row">
           <span className="today-ico">✦</span>
           <div className="grow">
             <span className="eyebrow">No program yet</span>
-            <b className="block">Pick a program or go instant</b>
+            <b className="block">Pick a program or quickstart</b>
           </div>
-          <button className="btn primary today-go" onClick={() => {
+          <button
+            className="btn primary today-go"
+            onClick={() => {
               useUI.getState().set({ workoutTab: 'find' });
               nav.reset('workout');
-            }}>
+            }}
+          >
             Discover
           </button>
         </div>
       )}
+
+      {!activeSession && (
+        <button className="link small choose-other" onClick={() => setChoose(true)}>
+          ⇄ Choose a different workout
+        </button>
+      )}
+
+      <Sheet open={choose} onClose={() => setChoose(false)} title="Start a workout" sub={routine?.name}>
+        <ul className="prog-rows">
+          {routine?.days.map((d) => (
+            <li key={d.id}>
+              <button
+                className={`prog-row ${d.id === day?.id ? 'is-current' : ''}`}
+                disabled={!d.items.length}
+                onClick={() => {
+                  setChoose(false);
+                  start(routine.id, d.id);
+                }}
+              >
+                <BodyMap heat={dayHeat(d, customExercises)} className="choose-map" />
+                <span className="grow">
+                  <b>{d.name}</b>
+                  <small className="muted block">
+                    {d.items.length} exercises · ~{fmtEst(estDaySeconds(d))}
+                  </small>
+                </span>
+                {d.id === day?.id && <span className="pill">Today</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button
+          className="btn block"
+          onClick={() => {
+            setChoose(false);
+            useUI.getState().set({ workoutTab: 'instant' });
+            nav.reset('workout');
+          }}
+        >
+          Quickstart a custom workout
+        </button>
+      </Sheet>
       {confirm}
     </section>
   );

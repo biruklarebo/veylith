@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
-import { dayKey, fmtDuration, fmtWeight, fromDisplay, sessionSetCount, sessionVolume, toDisplay, weekStreak } from '../lib/calc';
-import { Sheet } from '../components/Sheet';
+import { dayKey, fmtDuration, fmtWeight, sessionSetCount, sessionVolume, weekStreak } from '../lib/calc';
+import { BodyWeightCard } from '../components/BodyWeightCard';
 import { Thumb } from './Photos';
-import { LineChart } from '../components/LineChart';
 import { BodyMap } from '../components/BodyMap';
 import { daysSince, fatigue, hoursToReady, volume } from '../lib/recovery';
 import { Empty } from '../components/ui';
@@ -12,14 +11,9 @@ import { BODY_PARTS, type Session } from '../types';
 
 export function Progress() {
   const nav = useNav();
-  const { sessions, records, bodyStats, customExercises, settings, updateSettings } = useStore();
-  const [goalOpen, setGoalOpen] = useState(false);
+  const { sessions, records, customExercises, settings } = useStore();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
   const monthCount = sessions.filter((s) => s.start >= monthStart).length;
-  const weightPoints = bodyStats
-    .filter((b) => b.values.weight)
-    .map((b) => ({ t: new Date(b.date).getTime(), v: toDisplay(b.values.weight!, settings) }));
-
   const topRecords = Object.entries(records)
     .filter(([, r]) => r.best1RM > 0)
     .sort((a, b) => b[1].bestAt - a[1].bestAt)
@@ -59,49 +53,7 @@ export function Progress() {
 
       <MusclesCard />
 
-      <section className="card">
-        <div className="row">
-          <h3 className="grow">Body weight</h3>
-          <button className="btn small" onClick={() => nav.push({ kind: 'bodystats' })}>
-            Body stats ›
-          </button>
-        </div>
-        {weightPoints.length ? (
-          <>
-            <div className="bw-head">
-              <b className="bw-now">
-                {weightPoints.at(-1)!.v} <small>{settings.unit}</small>
-              </b>
-              {weightPoints.length > 1 && (
-                <span className={`bw-delta ${weightPoints.at(-1)!.v <= weightPoints.at(-2)!.v ? 'down' : 'up'}`}>
-                  {weightPoints.at(-1)!.v <= weightPoints.at(-2)!.v ? '↓' : '↑'} {Math.abs(Math.round((weightPoints.at(-1)!.v - weightPoints.at(-2)!.v) * 10) / 10)}
-                </span>
-              )}
-              <span className="grow" />
-              <button className="link small" onClick={() => setGoalOpen(true)}>
-                {settings.goalWeightLbs ? `◎ Goal ${toDisplay(settings.goalWeightLbs, settings)}` : '◎ Set goal'}
-              </button>
-            </div>
-            {settings.goalWeightLbs && (
-              <p className="muted small">
-                {(() => {
-                  const diff = Math.round((weightPoints.at(-1)!.v - toDisplay(settings.goalWeightLbs, settings)) * 10) / 10;
-                  return diff === 0 ? 'At your goal' : `${Math.abs(diff)} ${settings.unit} to ${diff > 0 ? 'lose' : 'gain'}`;
-                })()}
-              </p>
-            )}
-            <LineChart
-              points={weightPoints}
-              area
-              goal={settings.goalWeightLbs ? toDisplay(settings.goalWeightLbs, settings) : undefined}
-              format={(v) => `${v.toFixed(0)}`}
-              label={`Body weight in ${settings.unit} over time`}
-            />
-          </>
-        ) : (
-          <p className="muted small">Log your weight in Body stats to see a trend.</p>
-        )}
-      </section>
+      <BodyWeightCard />
 
       <section className="card">
         <h3>Personal records</h3>
@@ -123,17 +75,6 @@ export function Progress() {
       </section>
 
       <PhotosCard />
-
-      <GoalSheet
-        open={goalOpen}
-        value={settings.goalWeightLbs ? toDisplay(settings.goalWeightLbs, settings) : undefined}
-        unit={settings.unit}
-        onClose={() => setGoalOpen(false)}
-        onSave={(v) => {
-          updateSettings({ goalWeightLbs: v ? fromDisplay(v, settings) : undefined });
-          setGoalOpen(false);
-        }}
-      />
 
       <h3 className="section-title">History</h3>
       {sessions.length === 0 ? (
@@ -253,26 +194,6 @@ function MusclesCard() {
         })}
       </div>
     </section>
-  );
-}
-
-function GoalSheet({ open, value, unit, onClose, onSave }: { open: boolean; value?: number; unit: string; onClose: () => void; onSave: (v: number | undefined) => void }) {
-  const [text, setText] = useState('');
-  useEffect(() => setText(value ? String(value) : ''), [open, value]);
-  return (
-    <Sheet open={open} onClose={onClose} title="Body-weight goal">
-      <input className="field big-input" inputMode="decimal" autoFocus placeholder={`Goal in ${unit}`} value={text} onChange={(e) => setText(e.target.value)} />
-      <div className="row gap">
-        {value !== undefined && (
-          <button className="btn grow" onClick={() => onSave(undefined)}>
-            Remove goal
-          </button>
-        )}
-        <button className="btn primary grow" onClick={() => onSave(parseFloat(text) || undefined)}>
-          Save
-        </button>
-      </div>
-    </Sheet>
   );
 }
 

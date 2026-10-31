@@ -57,8 +57,7 @@ export function Workouts() {
       <nav className="seg-top">
         {(['find', 'planned', 'instant'] as const).map((t) => (
           <button key={t} className={workoutTab === t ? 'on' : ''} onClick={() => set({ workoutTab: t })}>
-            {t === 'find' ? 'Discover' : t === 'planned' ? 'Program' : 'Instant'}
-            {t === 'instant' && <span className="sparkle">✦</span>}
+            {t === 'find' ? 'Discover' : t === 'planned' ? 'Program' : 'Quickstart'}
           </button>
         ))}
       </nav>
@@ -448,7 +447,7 @@ function Instant() {
       rest: settings.defaultRest,
     })),
   }));
-  const name = parts.length ? `${parts.map((p) => BODY_PARTS[p]).join(' & ')} Workout` : 'Instant Workout';
+  const name = parts.length ? `${parts.map((p) => BODY_PARTS[p]).join(' & ')} Workout` : 'Quick Workout';
   const plan = routines.find((r) => r.id === activeRoutineId);
 
   return (

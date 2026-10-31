@@ -38,6 +38,7 @@ export function SessionScreen() {
   const [plateFor, setPlateFor] = useState<number | null>(null);
   const [effortFor, setEffortFor] = useState<number | null>(null);
   const [toast, setToast] = useState<ToastMsg | null>(null);
+  const [subsOpen, setSubsOpen] = useState(false);
   const [flashRow, setFlashRow] = useState<number | null>(null);
   const [washRow, setWashRow] = useState<number | null>(null);
   const [drag, setDrag] = useState(0);
@@ -197,7 +198,6 @@ export function SessionScreen() {
     pickExercises('Add to workout', (ids) =>
       useStore.getState().updateActive((x) => ({ ...x, logs: [...x.logs, ...ids.map((id) => freshLog(id))], current: x.logs.length })),
     );
-  const [subsOpen, setSubsOpen] = useState(false);
   const swapTo = (exerciseId: string) => {
     useStore.getState().updateActive((x) => ({ ...x, logs: x.logs.map((l, k) => (k === idx ? { ...freshLog(exerciseId, l), alternatives: l.alternatives, note: l.note } : l)) }));
     // Remember the pick for imported programs so the next session uses it too.
