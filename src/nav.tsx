@@ -26,7 +26,9 @@ export type Screen =
   | { kind: 'plan'; templateId?: string; routineId?: string }
   | { kind: 'bodystats' }
   | { kind: 'settings' }
-  | { kind: 'history'; id: string };
+  | { kind: 'history'; id: string }
+  | { kind: 'photos' }
+  | { kind: 'compare'; a: string; b: string };
 
 export type Tab = 'discover' | 'workout' | 'progress';
 

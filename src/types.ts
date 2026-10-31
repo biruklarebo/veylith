@@ -144,6 +144,18 @@ export const BODY_FIELDS = [
 ] as const;
 export type BodyField = (typeof BODY_FIELDS)[number];
 
+export type Pose = 'front' | 'side' | 'back';
+
+// Photo metadata lives in the store; the image itself is a Blob in IndexedDB (lib/photos).
+export interface ProgressPhoto {
+  id: string;
+  date: string; // YYYY-MM-DD
+  pose: Pose;
+  w: number;
+  h: number;
+  note?: string;
+}
+
 export interface BodyStat {
   id: string;
   date: string; // YYYY-MM-DD

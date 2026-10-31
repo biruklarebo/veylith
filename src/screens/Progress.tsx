@@ -3,6 +3,7 @@ import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
 import { dayKey, fmtDuration, fmtWeight, fromDisplay, sessionSetCount, sessionVolume, toDisplay, weekStreak } from '../lib/calc';
 import { Sheet } from '../components/Sheet';
+import { Thumb } from './Photos';
 import { LineChart } from '../components/LineChart';
 import { BodyMap } from '../components/BodyMap';
 import { daysSince, fatigue, hoursToReady, volume } from '../lib/recovery';
@@ -120,6 +121,8 @@ export function Progress() {
           </ul>
         )}
       </section>
+
+      <PhotosCard />
 
       <GoalSheet
         open={goalOpen}
@@ -349,6 +352,38 @@ function Heatmap({ sessions }: { sessions: Session[] }) {
           Less <i className="heat-cell l0" /> <i className="heat-cell l1" /> <i className="heat-cell l2" /> <i className="heat-cell l3" /> <i className="heat-cell l4" /> More
         </span>
       </div>
+    </section>
+  );
+}
+
+function PhotosCard() {
+  const nav = useNav();
+  const photos = useStore((s) => s.photos);
+  const recent = photos.slice(-4).reverse();
+  return (
+    <section className="card">
+      <div className="row">
+        <h3 className="grow">Progress photos</h3>
+        <button className="btn small" onClick={() => nav.push({ kind: 'photos' })}>
+          {photos.length ? `All ${photos.length} ›` : 'Add ›'}
+        </button>
+      </div>
+      {recent.length ? (
+        <>
+          <div className="ph-grid four">
+            {recent.map((p) => (
+              <Thumb key={p.id} photo={p} onClick={() => nav.push({ kind: 'photos' })} />
+            ))}
+          </div>
+          {photos.length >= 2 && (
+            <button className="btn soft block" onClick={() => nav.push({ kind: 'compare', a: photos[0].id, b: photos[photos.length - 1].id })}>
+              ⇆ Before / after
+            </button>
+          )}
+        </>
+      ) : (
+        <p className="muted small">Add photos to see your change side by side with a slider.</p>
+      )}
     </section>
   );
 }

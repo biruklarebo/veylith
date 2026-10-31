@@ -14,6 +14,7 @@ import { BodyStats } from './screens/BodyStats';
 import { ExerciseDetail, ExerciseLibrary } from './screens/Exercises';
 import { SettingsScreen } from './screens/Settings';
 import { PlanDetail, PlanList } from './screens/Find';
+import { CompareScreen, PhotosScreen } from './screens/Photos';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'discover', label: 'Home', icon: '⌂' },
@@ -22,7 +23,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 ];
 
 // Screens that take over the whole viewport (no tab bar, no workout bar).
-const FULL = new Set<Screen['kind']>(['session', 'review', 'celebrate', 'picker', 'plan']);
+const FULL = new Set<Screen['kind']>(['session', 'review', 'celebrate', 'picker', 'plan', 'compare']);
 
 function renderScreen(s: Screen) {
   switch (s.kind) {
@@ -52,6 +53,10 @@ function renderScreen(s: Screen) {
       return <PlanList category={s.category} filter={s.filter} />;
     case 'plan':
       return <PlanDetail templateId={s.templateId} routineId={s.routineId} />;
+    case 'photos':
+      return <PhotosScreen />;
+    case 'compare':
+      return <CompareScreen a={s.a} b={s.b} />;
   }
 }
 

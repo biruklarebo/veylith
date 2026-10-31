@@ -158,14 +158,14 @@ function TodayCard() {
         <div className="today-row">
           <span className="today-ico">✦</span>
           <div className="grow">
-            <span className="eyebrow">No plan yet</span>
-            <b className="block">Pick a plan or go instant</b>
+            <span className="eyebrow">No program yet</span>
+            <b className="block">Pick a program or go instant</b>
           </div>
           <button className="btn primary today-go" onClick={() => {
               useUI.getState().set({ workoutTab: 'find' });
               nav.reset('workout');
             }}>
-            Find
+            Discover
           </button>
         </div>
       )}

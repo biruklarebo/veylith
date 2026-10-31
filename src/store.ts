@@ -7,7 +7,7 @@ import { logBest1RM, uid } from './lib/calc';
 import { applyPhase, phaseOf } from './lib/plans';
 import { nextTarget, ruleFor } from './lib/progression';
 import type {
-  BodyStat, DayItem, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
+  BodyStat, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
 } from './types';
 
 const idbStorage: StateStorage = {
@@ -45,6 +45,7 @@ interface State {
   activeSession: Session | null;
   records: Record<string, ExerciseRecord>;
   bodyStats: BodyStat[];
+  photos: ProgressPhoto[];
   settings: Settings;
 
   addCustomExercise: (e: Omit<Exercise, 'id' | 'custom'>) => Exercise;
@@ -67,6 +68,9 @@ interface State {
   setTarget1RM: (exerciseId: string, target: number | undefined) => void;
   saveBodyStat: (b: BodyStat) => void;
   deleteBodyStat: (id: string) => void;
+  addPhoto: (p: ProgressPhoto) => void;
+  updatePhoto: (id: string, p: Partial<ProgressPhoto>) => void;
+  deletePhoto: (id: string) => void;
   updateSettings: (p: Partial<Settings>) => void;
 }
 
@@ -114,6 +118,7 @@ export const useStore = create<State>()(
       activeSession: null,
       records: {},
       bodyStats: [],
+      photos: [],
       settings: { unit: 'lb', defaultRest: 90, restTimerOn: true },
 
       addCustomExercise: (e) => {
@@ -260,6 +265,10 @@ export const useStore = create<State>()(
           ),
         })),
       deleteBodyStat: (id) => setState((s) => ({ bodyStats: s.bodyStats.filter((x) => x.id !== id) })),
+      addPhoto: (p) => setState((s) => ({ photos: [...s.photos, p].sort((a, b) => a.date.localeCompare(b.date)) })),
+      updatePhoto: (id, p) =>
+        setState((s) => ({ photos: s.photos.map((x) => (x.id === id ? { ...x, ...p } : x)).sort((a, b) => a.date.localeCompare(b.date)) })),
+      deletePhoto: (id) => setState((s) => ({ photos: s.photos.filter((x) => x.id !== id) })),
       updateSettings: (p) => setState((s) => ({ settings: { ...s.settings, ...p } })),
     }),
     { name: 'veylith', storage: createJSONStorage(() => idbStorage), version: 1 },

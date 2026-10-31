@@ -7,7 +7,8 @@ import {
   type BuildPrefs,
 } from '../lib/plans';
 import { ExerciseThumb, Figure } from '../components/BodyMap';
-import { uid } from '../lib/calc';
+import { estDaySeconds, fmtEst, uid } from '../lib/calc';
+import { MuscleShares } from './Workouts';
 import { Sheet } from '../components/Sheet';
 import { Empty, Header } from '../components/ui';
 import { BODY_PARTS, type Focus, type Location, type Routine, type WorkoutDay } from '../types';
@@ -46,10 +47,6 @@ export function PlanArt({ hue, heat, className, children }: { hue: number; heat:
   );
 }
 
-function templateMeta(t: PlanTemplate) {
-  return `${LEVEL_LABEL[t.level]} • ${GOAL_LABEL[t.goal]} • ${t.days.length} ${t.days.length === 1 ? 'Day' : 'Days'}`;
-}
-
 const factsCache = new Map<string, ReturnType<typeof planFacts>>();
 function templateFacts(t: PlanTemplate) {
   let f = factsCache.get(t.id);
@@ -80,92 +77,181 @@ function applyFilter(f: PlanFilter, list: PlanTemplate[]) {
   return out.sort(by[f.sort]);
 }
 
-// ---------- Find home ----------
+// ---------- Discover home ----------
+
+const CAT_HUE: Record<string, number> = { 'muscle-gain': 22, 'fat-loss': 2, 'push-pull': 215, abs: 160, 'full-body': 265, 'at-home': 130, '3-day-split': 195, stretch: 300 };
 
 export function FindHome() {
   const nav = useNav();
-  const { routines, activeRoutineId, customExercises } = useStore();
+  const { routines, activeRoutineId } = useStore();
   const [filterOpen, setFilterOpen] = useState(false);
-  const trending = CATALOG.filter((t) => t.trending);
+  const [q, setQ] = useState('');
+  const featured = CATALOG.filter((t) => t.trending);
+  const results = q.trim() ? applyFilter({ ...EMPTY_FILTER, q }, CATALOG) : null;
 
   return (
-    <div className="find">
-      <h2 className="find-h">For You</h2>
-      <AdaptiveCard />
-
-      <div className="row find-row">
-        <h2 className="find-h grow">Category</h2>
-        <button className="filter-btn" onClick={() => setFilterOpen(true)}>
-          <span aria-hidden>⚙</span> FILTER
-        </button>
-      </div>
-      <div className="cat-row">
-        {CATEGORIES.map((c) => (
-          <button key={c.id} className="cat" onClick={() => nav.push({ kind: 'plans', category: c.id })}>
-            <span className="cat-circle">
-              <CategoryIcon icon={c.icon} />
-            </span>
-            <span>{c.name}</span>
+    <div className="disc">
+      <div className="disc-search">
+        <span aria-hidden>⌕</span>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search programs" aria-label="Search programs" />
+        {q && (
+          <button className="clear" onClick={() => setQ('')} aria-label="Clear search">
+            ✕
           </button>
-        ))}
-      </div>
-
-      <h2 className="find-h">Trending</h2>
-      <div className="trend-row">
-        {trending.map((t) => {
-          const f = templateFacts(t);
-          return (
-            <button key={t.id} className="trend" onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
-              <PlanArt hue={t.hue} heat={f.heat}>
-                <span className="pa-badge">⏱ {f.avgMinutes} min</span>
-              </PlanArt>
-              <b>{t.name}</b>
-              <span className="muted small">{templateMeta(t)}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="row find-row">
-        <h2 className="find-h grow">My Plans</h2>
-        <button className="link small" onClick={() => nav.push({ kind: 'plans' })}>
-          VIEW ALL PLANS
+        )}
+        <button className="disc-filter" onClick={() => setFilterOpen(true)} aria-label="Filter programs">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+            <path d="M3 6h18M6 12h12M10 18h4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
         </button>
       </div>
-      <div className="trend-row">
-        {routines.map((r) => {
-          const f = planFacts(r.days, customExercises);
-          const tpl = r.templateId ? findTemplate(r.templateId) : undefined;
-          return (
-            <button key={r.id} className="trend small-card" onClick={() => nav.push({ kind: 'plan', routineId: r.id })}>
-              <PlanArt hue={tpl?.hue ?? 222} heat={f.heat}>
-                {r.id === activeRoutineId && <span className="pa-badge on">Current</span>}
-              </PlanArt>
-              <b>{r.name}</b>
-              <span className="muted small">
-                {LEVEL_LABEL[r.difficulty]} • {r.days.length} Days
-              </span>
-            </button>
-          );
-        })}
-        <CreatePlanCard />
-      </div>
+
+      {results ? (
+        <section className="disc-sec">
+          <h2 className="disc-h">
+            {results.length} {results.length === 1 ? 'program' : 'programs'}
+          </h2>
+          {results.length ? <ProgramRows list={results} /> : <p className="muted">Nothing matches “{q}”.</p>}
+        </section>
+      ) : (
+        <>
+          <CycleCard />
+
+          <section className="disc-sec">
+            <h2 className="disc-h">Browse by goal</h2>
+            <div className="goal-grid">
+              {CATEGORIES.map((c, i) => (
+                <button
+                  key={c.id}
+                  className="goal-tile"
+                  style={{ ['--h' as string]: CAT_HUE[c.id] ?? 220, animationDelay: `${i * 25}ms` }}
+                  onClick={() => nav.push({ kind: 'plans', category: c.id })}
+                >
+                  <span className="goal-ico">
+                    <CategoryIcon icon={c.icon} size={22} />
+                  </span>
+                  <span className="grow">
+                    <b>{c.name}</b>
+                    <small>{CATALOG.filter((t) => t.categories.includes(c.id)).length} programs</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {featured[0] && (
+            <section className="disc-sec">
+              <h2 className="disc-h">Featured</h2>
+              <FeatureCard t={featured[0]} />
+            </section>
+          )}
+
+          <section className="disc-sec">
+            <div className="row">
+              <h2 className="disc-h grow">Popular programs</h2>
+              <button className="link small" onClick={() => nav.push({ kind: 'plans' })}>
+                See all
+              </button>
+            </div>
+            <ProgramRows list={featured.slice(1)} />
+          </section>
+
+          <section className="disc-sec">
+            <h2 className="disc-h">Your programs</h2>
+            <ul className="prog-rows">
+              {routines.map((r) => (
+                <li key={r.id}>
+                  <button className="prog-row" onClick={() => nav.push({ kind: 'plan', routineId: r.id })}>
+                    <DaysBadge days={r.days.length} hue={(r.templateId && findTemplate(r.templateId)?.hue) || 222} />
+                    <span className="grow">
+                      <b>{r.name}</b>
+                      <small className="muted block">
+                        {LEVEL_LABEL[r.difficulty]} · {GOAL_LABEL[r.focus]}
+                        {r.author ? ` · ${r.author}` : ''}
+                      </small>
+                    </span>
+                    {r.id === activeRoutineId && <span className="pill">Current</span>}
+                    <span className="chev">›</span>
+                  </button>
+                </li>
+              ))}
+              <li>
+                <CreatePlanRow />
+              </li>
+            </ul>
+          </section>
+        </>
+      )}
 
       <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} />
     </div>
   );
 }
 
-function CreatePlanCard() {
+function DaysBadge({ days, hue }: { days: number; hue: number }) {
+  return (
+    <span className="days-badge" style={{ ['--h' as string]: hue }} aria-label={`${days} days per week`}>
+      <b>{days}</b>
+      <small>days</small>
+    </span>
+  );
+}
+
+function ProgramRows({ list }: { list: PlanTemplate[] }) {
+  const nav = useNav();
+  return (
+    <ul className="prog-rows">
+      {list.map((t, i) => {
+        const f = templateFacts(t);
+        return (
+          <li key={t.id} style={{ animationDelay: `${i * 30}ms` }}>
+            <button className="prog-row" onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
+              <DaysBadge days={t.days.length} hue={t.hue} />
+              <span className="grow">
+                <b>{t.name}</b>
+                <small className="muted block">
+                  {LEVEL_LABEL[t.level]} · {GOAL_LABEL[t.goal]} · ~{f.avgMinutes} min
+                </small>
+              </span>
+              <span className="chev">›</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function FeatureCard({ t }: { t: PlanTemplate }) {
+  const nav = useNav();
+  const f = templateFacts(t);
+  return (
+    <button className="feature" style={{ ['--h' as string]: t.hue }} onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
+      <span className="feature-txt">
+        <span className="eyebrow">{t.location === 'home' ? 'At home' : 'Gym'} · {t.days.length} days/week</span>
+        <b>{t.name}</b>
+        <small>{t.description}</small>
+        <span className="feature-meta">
+          <span>{LEVEL_LABEL[t.level]}</span>
+          <span>{GOAL_LABEL[t.goal]}</span>
+          <span>~{f.avgMinutes} min</span>
+        </span>
+      </span>
+      <Figure view="front" heat={f.heat} fit="meet" className="feature-fig" />
+    </button>
+  );
+}
+
+function CreatePlanRow() {
   const nav = useNav();
   const { adoptPlan } = useStore();
   return (
     <button
-      className="trend small-card create"
+      className="prog-row create"
       onClick={() => {
         const r: Routine = {
           id: uid(),
-          name: 'New Plan',
+          name: 'New Program',
           description: '',
           difficulty: 1,
           focus: 'general',
@@ -177,86 +263,54 @@ function CreatePlanCard() {
         nav.push({ kind: 'routine', id: r.id });
       }}
     >
-      <span className="create-box">＋</span>
-      <b>Create a plan</b>
-      <span className="muted small">Start from scratch</span>
+      <span className="days-badge add">＋</span>
+      <span className="grow">
+        <b>New program</b>
+        <small className="muted block">Start from scratch</small>
+      </span>
     </button>
   );
 }
 
-// ---------- adaptive plan card ----------
+// ---------- adaptive cycle card ----------
 
-const WAVE = [70, 58, 46, 26, 82]; // y per week: build, build, build, peak, deload
+const PHASE_OF_WEEK = ['build', 'build', 'build', 'peak', 'deload'] as const;
 
-function wavePath(w: number, h: number) {
-  const pts = WAVE.map((y, i) => [12 + (i * (w - 24)) / (WAVE.length - 1), (y / 100) * h] as const);
-  let d = `M${pts[0][0]},${pts[0][1]}`;
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1];
-    const [x1, y1] = pts[i];
-    const mx = (x0 + x1) / 2;
-    d += ` C${mx},${y0} ${mx},${y1} ${x1},${y1}`;
-  }
-  return { d, pts };
-}
-
-function AdaptiveCard() {
+function CycleCard() {
   const ui = useUI();
   const { routines, activeRoutineId, setActiveRoutine } = useStore();
   const [open, setOpen] = useState(false);
   const plan = routines.find((r) => r.adaptive && r.id === activeRoutineId) ?? routines.find((r) => r.adaptive);
   const ph = plan ? phaseOf(plan) : null;
-  const week = ph ? ph.week : 1;
-  const { d, pts } = wavePath(340, 90);
-  const dot = pts[week - 1];
-
   return (
-    <section className="adaptive">
-      <span className="phase-badge">{ph?.phase ?? 'Accumulation'}</span>
-      <h3>Your Adaptive Plan</h3>
-      <p>{ph ? `Week ${ph.week} of ${ph.weeks} · updates every week` : 'A mesocycle program that updates every week'}</p>
-      <svg viewBox="0 0 340 90" className="wave" aria-hidden>
-        <defs>
-          <clipPath id="wave-done">
-            <rect x="0" y="0" width={dot[0]} height="90" />
-          </clipPath>
-        </defs>
-        <path d={d} className="wave-next" />
-        <path d={d} className="wave-done" clipPath="url(#wave-done)" />
-        <circle cx={dot[0]} cy={dot[1]} r="9" className="wave-halo" />
-        <circle cx={dot[0]} cy={dot[1]} r="6" className="wave-dot" />
-      </svg>
-      <div className="steps">
-        <div>
-          <span>You</span>
-          <b>Train</b>
+    <section className="cycle">
+      <div className="row gap">
+        <span className="cycle-ico" aria-hidden>
+          ✦
+        </span>
+        <div className="grow">
+          <b>Adaptive program</b>
+          <small className="block">{ph ? `Week ${ph.week} of ${ph.weeks} · ${ph.phase}` : `Built from your goal, adjusts itself every week`}</small>
         </div>
-        <span className="chevs">»</span>
-        <div>
-          <span>Plan</span>
-          <b>Optimizes</b>
-        </div>
-        <span className="chevs">»</span>
-        <div>
-          <span>Weekly</span>
-          <b>Adapts</b>
-        </div>
-      </div>
-      {plan ? (
         <button
-          className="btn adaptive-btn"
+          className="btn primary cycle-btn"
           onClick={() => {
+            if (!plan) return setOpen(true);
             setActiveRoutine(plan.id);
             ui.set({ workoutTab: 'planned', planTab: 'overview', dayId: null });
           }}
         >
-          Open plan
+          {plan ? 'Open' : 'Build'}
         </button>
-      ) : (
-        <button className="btn adaptive-btn" onClick={() => setOpen(true)}>
-          Start
-        </button>
-      )}
+      </div>
+      <div className="cycle-weeks" aria-label={`${MESO_WEEKS}-week cycle`}>
+        {PHASE_OF_WEEK.map((p, i) => (
+          <span key={i} className={`cw ${p} ${ph && ph.week === i + 1 ? 'now' : ''} ${ph && ph.week > i + 1 ? 'past' : ''}`}>
+            <i />
+            <small>{p === 'build' ? `Build ${i + 1}` : p === 'peak' ? 'Peak' : 'Deload'}</small>
+          </span>
+        ))}
+      </div>
       <AdaptiveSheet open={open} onClose={() => setOpen(false)} />
     </section>
   );
@@ -414,8 +468,8 @@ export function PlanList({ category, filter }: { category?: string; filter?: Pla
           ‹
         </button>
         <div className="pl-title">
-          <h1>{cat?.name ?? (filter ? 'Filter results' : 'All plans')}</h1>
-          <p className="muted">{filter ? `${list.length} matching plans` : 'Most popular workouts'}</p>
+          <h1>{cat?.name ?? (filter ? 'Filter results' : 'All programs')}</h1>
+          <p className="muted">{list.length} {list.length === 1 ? 'program' : 'programs'}</p>
         </div>
         {cat ? (
           <span className="pl-icon">
@@ -432,24 +486,7 @@ export function PlanList({ category, filter }: { category?: string; filter?: Pla
           <p className="muted small">Try removing a filter.</p>
         </Empty>
       ) : (
-        <ul className="pl-rows">
-          {list.map((t) => {
-            const f = templateFacts(t);
-            return (
-              <li key={t.id}>
-                <button className="pl-row" onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
-                  <PlanArt hue={t.hue} heat={f.heat} className="pl-thumb">
-                    <span className="pa-badge">⏱ {f.avgMinutes} min</span>
-                  </PlanArt>
-                  <span className="grow">
-                    <b>{t.name}</b>
-                    <span className="muted block">{templateMeta(t)}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <ProgramRows list={list} />
       )}
       <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} initial={filter} />
     </div>
@@ -506,53 +543,72 @@ export function PlanDetail({ templateId, routineId }: { templateId?: string; rou
   };
 
   return (
-    <div className="plan-detail">
-      <PlanArt hue={tpl?.hue ?? 222} heat={facts.heat} className="pd-hero">
-        <button className="icon-btn glass pd-back" onClick={nav.pop} aria-label="Back">
+    <div className="plan-detail pd2">
+      <header className="pd2-top">
+        <button className="icon-btn" onClick={nav.pop} aria-label="Back">
           ‹
         </button>
-        <button className="icon-btn glass pd-share" onClick={share} aria-label="Share plan">
+        <span className="grow" />
+        <button className="icon-btn" onClick={share} aria-label="Share program">
           ⇪
         </button>
-        <div className="pd-heading">
-          <span>Created by: {author}</span>
+      </header>
+
+      <section className="pd2-head" style={{ ['--h' as string]: tpl?.hue ?? 222 }}>
+        <div className="grow">
+          <span className="eyebrow">by {author}</span>
           <h1>{name}</h1>
+          {description && <p>{description}</p>}
         </div>
-      </PlanArt>
+        <Figure view="front" heat={facts.heat} fit="meet" className="pd2-fig" />
+      </section>
       {shared && <p className="muted small center">{shared}</p>}
 
-      <div className="pd-pills">
+      <div className="pd2-stats">
         <div>
-          <span className="pd-ico">▦</span>
-          {GOAL_LABEL[goal]}
+          <b>{days.length}</b>
+          <span>days / week</span>
         </div>
         <div>
-          <span className="pd-ico">▮▯▮</span>
-          {LEVEL_LABEL[level]}
+          <b>~{facts.avgMinutes}</b>
+          <span>min / session</span>
         </div>
         <div>
-          <span className="pd-ico">◷</span>
-          {days.length} {days.length === 1 ? 'day' : 'days'}
+          <b>{LEVEL_LABEL[level]}</b>
+          <span>level</span>
+        </div>
+        <div>
+          <b>{GOAL_LABEL[goal]}</b>
+          <span>goal</span>
         </div>
       </div>
-      <p className="pd-equip">{facts.equipment.join(', ') || 'No equipment'}</p>
-      {description && <p className="muted pd-desc">{description}</p>}
-      <p className="muted small">About {facts.avgMinutes} min per session</p>
+
+      <section className="card">
+        <h3>Muscle focus</h3>
+        <MuscleShares heat={facts.heat} />
+        <div className="equip-chips">
+          {(facts.equipment.length ? facts.equipment : ['No equipment']).map((e) => (
+            <span key={e} className="chip">
+              {e}
+            </span>
+          ))}
+        </div>
+      </section>
 
       <div className="row">
-        <span className="grow" />
-        <button className="link" onClick={() => setOpenDays(allOpen ? new Set([0]) : new Set(days.map((_, i) => i)))}>
-          {allOpen ? 'COLLAPSE' : 'VIEW ALL'}
+        <h3 className="grow">Schedule</h3>
+        <button className="link small" onClick={() => setOpenDays(allOpen ? new Set([0]) : new Set(days.map((_, i) => i)))}>
+          {allOpen ? 'Collapse all' : 'Expand all'}
         </button>
       </div>
 
-      <div className="pd-days">
+      <div className="pd2-days">
         {days.map((d, i) => {
           const isOpen = openDays.has(i);
           return (
-            <section key={d.id} className="pd-day">
+            <section key={d.id} className={`pd2-day ${isOpen ? 'open' : ''}`}>
               <button
-                className="pd-day-head"
+                className="pd2-day-head"
                 aria-expanded={isOpen}
                 onClick={() =>
                   setOpenDays((s) => {
@@ -563,24 +619,27 @@ export function PlanDetail({ templateId, routineId }: { templateId?: string; rou
                   })
                 }
               >
+                <span className="day-num">{i + 1}</span>
                 <span className="grow">
-                  {d.name} - Day {i + 1}
+                  <b>{d.name}</b>
+                  <small className="muted block">
+                    {d.items.length} exercises · ~{fmtEst(estDaySeconds(d))}
+                  </small>
                 </span>
                 <span className={`chev-d ${isOpen ? 'up' : ''}`}>⌄</span>
               </button>
               {isOpen && (
-                <ul className="ex-list">
+                <ul className="pd2-ex">
                   {d.items.map((it) => {
                     const ex = findExercise(it.exerciseId, customExercises);
+                    const reps = it.sets.map((x) => x.reps);
                     return (
                       <li key={it.id}>
-                        <button className="ex-row" onClick={() => nav.push({ kind: 'exercise', id: it.exerciseId })}>
-                          <ExerciseThumb ex={ex} size={60} />
-                          <span className="grow">
-                            <b>{ex?.name ?? 'Exercise'}</b>
-                            <span className="muted block">
-                              {it.sets.length} {it.sets.length === 1 ? 'set' : 'sets'}
-                            </span>
+                        <button onClick={() => nav.push({ kind: 'exercise', id: it.exerciseId })}>
+                          <ExerciseThumb ex={ex} size={44} />
+                          <span className="grow">{ex?.name ?? 'Exercise'}</span>
+                          <span className="muted small">
+                            {it.sets.length} × {reps.every((r) => r === reps[0]) ? reps[0] : reps.join(',')}
                           </span>
                         </button>
                       </li>
@@ -595,7 +654,7 @@ export function PlanDetail({ templateId, routineId }: { templateId?: string; rou
 
       <div className="pd-foot">
         <button className="btn primary big block" disabled={isCurrent} onClick={select}>
-          {isCurrent ? 'Current Plan' : 'Select as Current Plan'}
+          {isCurrent ? '✓ Your current program' : 'Use this program'}
         </button>
         {tpl && !routine ? (
           <button className="btn build big block" onClick={() => setBuild(true)}>
@@ -604,7 +663,7 @@ export function PlanDetail({ templateId, routineId }: { templateId?: string; rou
         ) : (
           routine && (
             <button className="btn build big block" onClick={() => nav.push({ kind: 'routine', id: routine.id })}>
-              Edit plan
+              Edit program
             </button>
           )
         )}
