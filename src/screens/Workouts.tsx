@@ -71,16 +71,17 @@ export function Workouts() {
 function Planned() {
   const nav = useNav();
   const ui = useUI();
-  const { routines, activeRoutineId, saveRoutine, deleteRoutine, customExercises } = useStore();
+  const { routines, activeRoutineId, saveRoutine, deleteRoutine, customExercises, setActiveRoutine } = useStore();
   const [menu, setMenu] = useState(false);
+  const [switcher, setSwitcher] = useState(false);
   const r = routines.find((x) => x.id === activeRoutineId);
 
   if (!r)
     return (
-      <Empty title="No plan selected">
-        <p className="muted small">Pick a plan or build your own.</p>
+      <Empty title="No program selected">
+        <p className="muted small">Pick a program or build your own.</p>
         <button className="btn primary" onClick={() => ui.set({ workoutTab: 'find' })}>
-          Find a plan
+          Browse programs
         </button>
       </Empty>
     );
@@ -95,12 +96,13 @@ function Planned() {
   );
 
   const planActions: Action[] = [
-    { label: 'Edit plan details', onClick: () => nav.push({ kind: 'routine', id: r.id }) },
+    { label: 'Switch program', onClick: () => setSwitcher(true) },
+    { label: 'Edit program details', onClick: () => nav.push({ kind: 'routine', id: r.id }) },
     {
-      label: 'Duplicate plan',
+      label: 'Duplicate program',
       onClick: () => saveRoutine({ ...r, id: uid(), name: `${r.name} (copy)`, days: r.days.map((d) => ({ ...d, id: uid() })) }),
     },
-    { label: 'Delete plan', danger: true, onClick: () => deleteRoutine(r.id) },
+    { label: 'Delete program', danger: true, onClick: () => deleteRoutine(r.id) },
   ];
 
   return (
@@ -108,12 +110,15 @@ function Planned() {
       {!ui.heroCollapsed && (
         <section className="plan-hero">
           <BodyMap heat={heat} className="plan-hero-art" />
-          <button className="icon-btn hero-more" onClick={() => setMenu(true)} aria-label="Plan options">
+          <button className="icon-btn hero-more" onClick={() => setMenu(true)} aria-label="Program options">
             •••
           </button>
-          <h1>{r.name}</h1>
-          <button className="btn glass" onClick={() => ui.set({ workoutTab: 'find' })}>
-            All Plans
+          <div className="hero-title">
+            <span className="eyebrow hero-eyebrow">Current program</span>
+            <h1>{r.name}</h1>
+          </div>
+          <button className="btn glass" onClick={() => setSwitcher(true)}>
+            ⇄ Switch
           </button>
         </section>
       )}
@@ -137,6 +142,52 @@ function Planned() {
       </div>
       {ui.planTab === 'overview' ? <Overview r={r} /> : <DayDetails r={r} />}
       <ActionSheet open={menu} onClose={() => setMenu(false)} title={r.name} actions={planActions} />
+      <Sheet open={switcher} onClose={() => setSwitcher(false)} title="Your programs">
+        <ul className="prog-rows">
+          {routines.map((x) => (
+            <li key={x.id}>
+              <button
+                className={`prog-row ${x.id === r.id ? 'is-current' : ''}`}
+                onClick={() => {
+                  setActiveRoutine(x.id);
+                  ui.set({ planTab: 'overview', dayId: null });
+                  setSwitcher(false);
+                }}
+              >
+                <span className="grow">
+                  <b>{x.name}</b>
+                  <small className="muted block">
+                    {x.days.length} days · {x.author ?? 'You'}
+                  </small>
+                </span>
+                {x.id === r.id ? <span className="pill">Current</span> : <span className="chev">›</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="row gap">
+          <button
+            className="btn grow"
+            onClick={() => {
+              setSwitcher(false);
+              const n: Routine = { id: uid(), name: 'New Program', description: '', difficulty: 1, focus: 'general', daysPerWeek: 3, days: [{ id: uid(), name: 'Day 1', items: [] }], author: 'You' };
+              useStore.getState().adoptPlan(n);
+              nav.push({ kind: 'routine', id: n.id });
+            }}
+          >
+            ＋ New program
+          </button>
+          <button
+            className="btn primary grow"
+            onClick={() => {
+              setSwitcher(false);
+              ui.set({ workoutTab: 'find' });
+            }}
+          >
+            Browse programs
+          </button>
+        </div>
+      </Sheet>
     </>
   );
 }

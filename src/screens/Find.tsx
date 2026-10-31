@@ -83,7 +83,7 @@ const CAT_HUE: Record<string, number> = { 'muscle-gain': 22, 'fat-loss': 2, 'pus
 
 export function FindHome() {
   const nav = useNav();
-  const { routines, activeRoutineId } = useStore();
+  const { routines, activeRoutineId, customExercises } = useStore();
   const [filterOpen, setFilterOpen] = useState(false);
   const [q, setQ] = useState('');
   const featured = CATALOG.filter((t) => t.trending);
@@ -119,81 +119,71 @@ export function FindHome() {
 
           <section className="disc-sec">
             <h2 className="disc-h">Browse by goal</h2>
-            <div className="goal-grid">
+            <div className="sq-row">
               {CATEGORIES.map((c, i) => (
                 <button
                   key={c.id}
-                  className="goal-tile"
+                  className="goal-sq"
                   style={{ ['--h' as string]: CAT_HUE[c.id] ?? 220, animationDelay: `${i * 25}ms` }}
                   onClick={() => nav.push({ kind: 'plans', category: c.id })}
                 >
-                  <span className="goal-ico">
-                    <CategoryIcon icon={c.icon} size={22} />
-                  </span>
-                  <span className="grow">
-                    <b>{c.name}</b>
-                    <small>{CATALOG.filter((t) => t.categories.includes(c.id)).length} programs</small>
-                  </span>
+                  <CategoryIcon icon={c.icon} size={58} />
+                  <b>{c.name}</b>
+                  <small>{CATALOG.filter((t) => t.categories.includes(c.id)).length} programs</small>
                 </button>
               ))}
             </div>
           </section>
 
-          {featured[0] && (
-            <section className="disc-sec">
-              <h2 className="disc-h">Featured</h2>
-              <FeatureCard t={featured[0]} />
-            </section>
-          )}
-
           <section className="disc-sec">
             <div className="row">
-              <h2 className="disc-h grow">Popular programs</h2>
+              <h2 className="disc-h grow">Trending</h2>
               <button className="link small" onClick={() => nav.push({ kind: 'plans' })}>
                 See all
               </button>
             </div>
-            <ProgramRows list={featured.slice(1)} />
+            <div className="sq-row">
+              {featured.map((t) => {
+                const f = templateFacts(t);
+                return (
+                  <ArtSquare
+                    key={t.id}
+                    hue={t.hue}
+                    heat={f.heat}
+                    days={t.days.length}
+                    title={t.name}
+                    meta={`${LEVEL_LABEL[t.level]} · ~${f.avgMinutes} min`}
+                    onClick={() => nav.push({ kind: 'plan', templateId: t.id })}
+                  />
+                );
+              })}
+            </div>
           </section>
 
           <section className="disc-sec">
             <h2 className="disc-h">Your programs</h2>
-            <ul className="prog-rows">
+            <div className="sq-row">
               {routines.map((r) => (
-                <li key={r.id}>
-                  <button className="prog-row" onClick={() => nav.push({ kind: 'plan', routineId: r.id })}>
-                    <DaysBadge days={r.days.length} hue={(r.templateId && findTemplate(r.templateId)?.hue) || 222} />
-                    <span className="grow">
-                      <b>{r.name}</b>
-                      <small className="muted block">
-                        {LEVEL_LABEL[r.difficulty]} · {GOAL_LABEL[r.focus]}
-                        {r.author ? ` · ${r.author}` : ''}
-                      </small>
-                    </span>
-                    {r.id === activeRoutineId && <span className="pill">Current</span>}
-                    <span className="chev">›</span>
-                  </button>
-                </li>
+                <ArtSquare
+                  key={r.id}
+                  small
+                  hue={(r.templateId && findTemplate(r.templateId)?.hue) || 222}
+                  heat={planFacts(r.days, customExercises).heat}
+                  days={r.days.length}
+                  title={r.name}
+                  meta={`${LEVEL_LABEL[r.difficulty]} · ${GOAL_LABEL[r.focus]}`}
+                  current={r.id === activeRoutineId}
+                  onClick={() => nav.push({ kind: 'plan', routineId: r.id })}
+                />
               ))}
-              <li>
-                <CreatePlanRow />
-              </li>
-            </ul>
+              <CreatePlanSquare />
+            </div>
           </section>
         </>
       )}
 
       <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} />
     </div>
-  );
-}
-
-function DaysBadge({ days, hue }: { days: number; hue: number }) {
-  return (
-    <span className="days-badge" style={{ ['--h' as string]: hue }} aria-label={`${days} days per week`}>
-      <b>{days}</b>
-      <small>days</small>
-    </span>
   );
 }
 
@@ -206,7 +196,12 @@ function ProgramRows({ list }: { list: PlanTemplate[] }) {
         return (
           <li key={t.id} style={{ animationDelay: `${i * 30}ms` }}>
             <button className="prog-row" onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
-              <DaysBadge days={t.days.length} hue={t.hue} />
+              <PlanArt hue={t.hue} heat={f.heat} className="prog-thumb">
+                <span className="art-sq-days mini">
+                  <b>{t.days.length}</b>
+                  <small>days</small>
+                </span>
+              </PlanArt>
               <span className="grow">
                 <b>{t.name}</b>
                 <small className="muted block">
@@ -222,32 +217,30 @@ function ProgramRows({ list }: { list: PlanTemplate[] }) {
   );
 }
 
-function FeatureCard({ t }: { t: PlanTemplate }) {
-  const nav = useNav();
-  const f = templateFacts(t);
+// Big square card: plan art with the title over a scrim, days badge in the corner.
+export function ArtSquare({ hue, heat, days, title, meta, current, small, onClick }: { hue: number; heat: number[]; days: number; title: string; meta: string; current?: boolean; small?: boolean; onClick: () => void }) {
   return (
-    <button className="feature" style={{ ['--h' as string]: t.hue }} onClick={() => nav.push({ kind: 'plan', templateId: t.id })}>
-      <span className="feature-txt">
-        <span className="eyebrow">{t.location === 'home' ? 'At home' : 'Gym'} · {t.days.length} days/week</span>
-        <b>{t.name}</b>
-        <small>{t.description}</small>
-        <span className="feature-meta">
-          <span>{LEVEL_LABEL[t.level]}</span>
-          <span>{GOAL_LABEL[t.goal]}</span>
-          <span>~{f.avgMinutes} min</span>
-        </span>
+    <button className={`art-sq ${small ? 'small' : ''}`} style={{ ['--h' as string]: hue }} onClick={onClick}>
+      <PlanArt hue={hue} heat={heat} className="art-sq-art" />
+      <span className="art-sq-days">
+        <b>{days}</b>
+        <small>days</small>
       </span>
-      <Figure view="front" heat={f.heat} fit="meet" className="feature-fig" />
+      {current && <span className="art-sq-cur">Current</span>}
+      <span className="art-sq-txt">
+        <b>{title}</b>
+        <small>{meta}</small>
+      </span>
     </button>
   );
 }
 
-function CreatePlanRow() {
+function CreatePlanSquare() {
   const nav = useNav();
   const { adoptPlan } = useStore();
   return (
     <button
-      className="prog-row create"
+      className="art-sq small create"
       onClick={() => {
         const r: Routine = {
           id: uid(),
@@ -263,10 +256,10 @@ function CreatePlanRow() {
         nav.push({ kind: 'routine', id: r.id });
       }}
     >
-      <span className="days-badge add">＋</span>
-      <span className="grow">
+      <span className="create-plus">＋</span>
+      <span className="art-sq-txt">
         <b>New program</b>
-        <small className="muted block">Start from scratch</small>
+        <small>Start from scratch</small>
       </span>
     </button>
   );
