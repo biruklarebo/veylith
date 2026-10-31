@@ -6,7 +6,8 @@ import { SEED_ROUTINES } from './data/routines';
 import { logBest1RM, uid } from './lib/calc';
 import { applyPhase, phaseOf } from './lib/plans';
 import { nextTarget, ruleFor } from './lib/progression';
-import { blockFor, currentWeek, daysForWeek, guessExercise, matchExercise, nameKey, type ParsedProgram } from './lib/programImport';
+import { blockFor, currentWeek, daysForWeek, guessExercise, matchExercise, nameKey, parseProgram, type ParsedProgram } from './lib/programImport';
+import { SEED_PROGRAMS } from './data/programs';
 import type {
   BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
 } from './types';
@@ -116,10 +117,46 @@ function logFromPlan(item: DayItem, p: Prefill): ExerciseLog {
   return { ...base, sets };
 }
 
+// Match every exercise name to the library; names it doesn't know become custom exercises.
+function buildProgram(parsed: ParsedProgram, source: string, customExercises: Exercise[], id = uid(), builtin?: true) {
+  const library = [...SEED_EXERCISES, ...customExercises];
+  const ids: Record<string, string> = {};
+  const added: Exercise[] = [];
+  for (const b of parsed.blocks)
+    for (const d of b.days)
+      for (const slot of d.slots)
+        for (const name of slot.options) {
+          const k = nameKey(name);
+          if (ids[k]) continue;
+          const known = [...library, ...added].find((e) => nameKey(e.name) === k) ?? matchExercise(name, library);
+          if (known) ids[k] = known.id;
+          else {
+            const ex: Exercise = { ...guessExercise(name), id: `custom-${uid()}`, custom: true };
+            added.push(ex);
+            ids[k] = ex.id;
+          }
+        }
+  const program: CuratedProgram = { id, name: parsed.name, source, weeks: parsed.weeks, blocks: parsed.blocks, ids, imported: Date.now(), builtin };
+  return { program, added };
+}
+
+// Programs that ship with the app, added to Curated on first run (and for existing users by
+// migration). Removing one keeps it removed.
+function seedPrograms(customExercises: Exercise[], after = 0) {
+  let custom = customExercises;
+  const programs = SEED_PROGRAMS.filter((p) => p.since > after).map(({ id, name, csv }) => {
+    const { program, added } = buildProgram({ ...parseProgram(csv, name), name }, 'Veylith', custom, id, true);
+    custom = [...custom, ...added];
+    return program;
+  });
+  return { curated: programs, customExercises: custom };
+}
+const seeded = seedPrograms([]);
+
 export const useStore = create<State>()(
   persist(
     (setState, getState) => ({
-      customExercises: [],
+      customExercises: seeded.customExercises,
       routines: SEED_ROUTINES,
       activeRoutineId: 'ppl',
       sessions: [],
@@ -127,7 +164,7 @@ export const useStore = create<State>()(
       records: {},
       bodyStats: [],
       photos: [],
-      curated: [],
+      curated: seeded.curated,
       settings: { unit: 'lb', defaultRest: 90, restTimerOn: true },
 
       addCustomExercise: (e) => {
@@ -280,26 +317,7 @@ export const useStore = create<State>()(
         setState((s) => ({ photos: s.photos.map((x) => (x.id === id ? { ...x, ...p } : x)).sort((a, b) => a.date.localeCompare(b.date)) })),
       deletePhoto: (id) => setState((s) => ({ photos: s.photos.filter((x) => x.id !== id) })),
       importProgram: (parsed, source) => {
-        // Match every exercise name to the library; names it doesn't know become custom exercises.
-        const { customExercises } = getState();
-        const library = [...SEED_EXERCISES, ...customExercises];
-        const ids: Record<string, string> = {};
-        const added: Exercise[] = [];
-        for (const b of parsed.blocks)
-          for (const d of b.days)
-            for (const slot of d.slots)
-              for (const name of slot.options) {
-                const k = nameKey(name);
-                if (ids[k]) continue;
-                const known = [...library, ...added].find((e) => nameKey(e.name) === k) ?? matchExercise(name, library);
-                if (known) ids[k] = known.id;
-                else {
-                  const ex: Exercise = { ...guessExercise(name), id: `custom-${uid()}`, custom: true };
-                  added.push(ex);
-                  ids[k] = ex.id;
-                }
-              }
-        const program: CuratedProgram = { id: uid(), name: parsed.name, source, weeks: parsed.weeks, blocks: parsed.blocks, ids, imported: Date.now() };
+        const { program, added } = buildProgram(parsed, source, getState().customExercises);
         setState((s) => ({ curated: [...s.curated, program], customExercises: [...s.customExercises, ...added] }));
         return program;
       },
@@ -310,12 +328,12 @@ export const useStore = create<State>()(
         const base: Routine = {
           id: uid(),
           name: p.name,
-          description: `Imported from ${p.source}. ${p.weeks} weeks, follows the week you're on.`,
+          description: `${p.builtin ? 'Curated program' : `Imported from ${p.source}`}. ${p.weeks} weeks, follows the week you're on.`,
           difficulty: 2,
           focus: 'general',
           daysPerWeek: p.blocks[0].days.length,
           days: [],
-          author: 'Imported',
+          author: p.builtin ? 'Veylith' : 'Imported',
           progression: 'off',
           guided: { programId, start: new Date().setHours(0, 0, 0, 0), choices, block: blockFor(p, 1).label },
         };
@@ -359,7 +377,21 @@ export const useStore = create<State>()(
         })),
       updateSettings: (p) => setState((s) => ({ settings: { ...s.settings, ...p } })),
     }),
-    { name: 'veylith', storage: createJSONStorage(() => idbStorage), version: 1 },
+    {
+      name: 'veylith',
+      storage: createJSONStorage(() => idbStorage),
+      version: 3,
+      migrate: (state, version) => {
+        let s = state as State;
+        if (version < 3) {
+          const seed = seedPrograms(s.customExercises ?? [], version);
+          const names = Object.fromEntries(SEED_PROGRAMS.map((p) => [p.id, p.name]));
+          const curated = (s.curated ?? []).map((p) => (p.builtin && names[p.id] ? { ...p, name: names[p.id] } : p));
+          s = { ...s, curated: [...seed.curated, ...curated], customExercises: seed.customExercises };
+        }
+        return s;
+      },
+    },
   ),
 );
 

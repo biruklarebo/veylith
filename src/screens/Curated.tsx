@@ -22,7 +22,7 @@ export function CuratedSection() {
     <section className="disc-sec">
       <div className="row">
         <h2 className="disc-h grow">Curated</h2>
-        <span className="muted small">Your imported programs</span>
+        <span className="muted small">Programs to follow week by week</span>
       </div>
       <div className="sq-row">
         {curated.map((p) => {
@@ -107,7 +107,7 @@ export function CuratedDetail({ id }: { id: string }) {
       </header>
       <section className="pd2-head" style={{ ['--h' as string]: hueOf(p) }}>
         <div className="grow">
-          <span className="eyebrow">Curated · imported</span>
+          <span className="eyebrow">Curated{p.builtin ? '' : ' · imported'}</span>
           <input
             className="pd2-name"
             value={name}

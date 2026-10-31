@@ -98,6 +98,7 @@ export interface CuratedProgram {
   blocks: ProgramBlock[];
   ids: Record<string, string>; // normalised exercise name -> exercise id
   imported: number;
+  builtin?: true; // ships with the app
 }
 
 export type ProgressionRule = 'off' | 'linear' | 'double' | 'triple';

@@ -1,0 +1,61 @@
+Block,Workout,Exercise,Warm-Up Sets,Working Sets,Reps,RPE,Rest,Substitution Option 1,Substitution Option 2
+Weeks 1-4,Full Body,Hack Squat (Heavy),2-3,1,4-6,8-9,~3 min,Machine Squat,Leg Press
+Weeks 1-4,Full Body,Hack Squat (Back off),0,1,8-10,8-9,~3 min,Machine Squat,Leg Press
+Weeks 1-4,Full Body,Incline DB Press,2,2,8-10,8-9,~2 min,Incline Machine Press,Incline Smith Machine Press
+Weeks 1-4,Full Body,Seated Hamstring Curl,1,1,10-12,10,~1.5 min,Nordic Ham Curl,Lying Leg Curl
+Weeks 1-4,Full Body,T-Bar Row,1,2,10-12,9-10,~1.5 min,Helms DB Row,Chest-Supported Machine Row
+Weeks 1-4,Full Body,DB Bicep Curl,1,1,12-15 (dropset),10,~1.5 min,EZ-Bar Curl,Cable EZ-Curl
+Weeks 1-4,Full Body,DB Lateral Raise,1,1,12-15 (dropset),10,~1.5 min,Cable Lateral Raise,Machine Lateral Raise
+Weeks 1-4,Full Body,Cable Crunch,0,1,12-15 (dropset),10,~1.5 min,Machine Crunch,Plate-weighted Crunch
+Weeks 1-4,Upper,Flat DB Press (Heavy),2-3,1,4-6,8-9,~3 min,Machine Chest Press,Weighted Dip
+Weeks 1-4,Upper,Flat DB Press (Back off),0,1,8-10,9-10,~3 min,Machine Chest Press,Weighted Dip
+Weeks 1-4,Upper,2-Grip Lat Pulldown,2,2,10-12,9-10,~2 min,2-Grip Pull-up,Machine Pulldown
+Weeks 1-4,Upper,Seated DB Shoulder Press,1,2,10-12,9-10,~2 min,Machine Shoulder Press,Standing DB Arnold Press
+Weeks 1-4,Upper,Seated Cable Row,1,2,10-12 (dropset),9-10,~2 min,Incline Chest-supported DB Row,Chest-Supported T-Bar Row
+Weeks 1-4,Upper,A1: EZ Bar Skull Crusher,1,2,12-15,10,0 min,Overhead Cable Triceps Extension,DB French Press
+Weeks 1-4,Upper,A2: EZ Bar Curl,1,2,12-15,10,~1.5 min,DB Curl,Cable EZ Curl
+Weeks 1-4,Lower,Romanian Deadlift,2,2,10-12,8-9,~2 min,DB Romanian Deadlift,45° Hyperextension
+Weeks 1-4,Lower,Leg Press,2,3,10-12,8-9,~2 min,Goblet Squat,DB Walking Lunge
+Weeks 1-4,Lower,Leg Extension,1,1,10-12 (dropset),9-10,~1.5 min,DB Step-Up,Goblet Squat
+Weeks 1-4,Lower,A1: Seated Calf Raise,1,2,12-15,10,0 min,Standing Calf Raise,Leg Press Toe Press
+Weeks 1-4,Lower,A2: Cable Crunch,1,2,12-15,10,~1.5 min,Machine Crunch,Plate-Weighted Crunch
+Weeks 5-8,Full Body,Incline Machine Press,1-2,2,8-10,9-10,~2 min,Incline Smith Machine Press,Incline DB Press
+Weeks 5-8,Full Body,Single-Leg Leg Press (Heavy),2-3,1,6-8 per leg,8-9,~3 min,Machine Squat,Hack Squat
+Weeks 5-8,Full Body,Single-Leg Leg Press (Back off),0,1,10-12 per leg,8-9,~3 min,Machine Squat,Hack Squat
+Weeks 5-8,Full Body,Pendlay Row,2,2,8-10,9-10,~2 min,T-Bar Row,Seated Cable Row
+Weeks 5-8,Full Body,Glute-Ham Raise,1,1,10-12,10,~1.5 min,Nordic Ham Curl,Lying Leg Curl
+Weeks 5-8,Full Body,Spider Curl,1,1,12-15 (dropset),10,~1.5 min,DB Preacher Curl,Bayesian Cable Curl
+Weeks 5-8,Full Body,Cable Lateral Raise,1,1,12-15 (dropset),10,~1.5 min,Machine Lateral Raise,DB Lateral Raise
+Weeks 5-8,Full Body,Hanging Leg Raise,0,1,12-15,10,~1.5 min,Roman Chair Crunch,Reverse Crunch
+Weeks 5-8,Upper,2-Grip Pullup,1-2,2,8-10,9-10,~2 min,Machine Pulldown,2-Grip Lat Pulldown
+Weeks 5-8,Upper,Weighted Dip (Heavy),2-3,1,6-8,8-9,~3 min,Machine Chest Press,Flat DB Press
+Weeks 5-8,Upper,Weighted Dip (Back off),0,1,10-12,9-10,~3 min,Machine Chest Press,Flat DB Press
+Weeks 5-8,Upper,Incline Chest-Supported DB Row,1,2,8-10,9-10,~2 min,Chest-Supported T-Bar Row,Seated Cable Row
+Weeks 5-8,Upper,Standing DB Arnold Press,1,2,8-10,9-10,~2 min,Machine Shoulder Press,Seated DB Shoulder Press
+Weeks 5-8,Upper,A1: DB Incline Curl,1,2,15-20,10,0 min,Cable EZ Curl,EZ Bar Curl
+Weeks 5-8,Upper,A2: DB French Press,1,2,15-20,10,~1.5 min,Overhead Cable Triceps Extension,EZ Bar Skull Crusher
+Weeks 5-8,Lower,DB Bulgarian Split Squat,2,3,10-12,8-9,~2 min,Goblet Squat,Leg Press
+Weeks 5-8,Lower,DB Romanian Deadlift,2,2,10-12,8-9,~2 min,Romanian Deadlift,45° Hyperextension
+Weeks 5-8,Lower,Goblet Squat,1,1,12-15,9-10,~1.5 min,Leg Extension,Step-Up
+Weeks 5-8,Lower,A1: Leg Press Toe Press,1,2,15-20,10,0 min,Standing Calf Raise,Seated Calf Raise
+Weeks 5-8,Lower,A2: Machine Crunch,1,2,10-12,9-10,~1.5 min,Plate-Weighted Crunch,Cable Crunch
+Weeks 9-12,Full Body,Machine Squat (Heavy),2-3,1,4-6,8-9,~3 min,Hack Squat,Leg Press
+Weeks 9-12,Full Body,Machine Squat (Back off),0,1,8-10,8-9,~3 min,Hack Squat,Leg Press
+Weeks 9-12,Full Body,Standing DB Arnold Press,2,2,8-10,9-10,~2 min,Seated DB Shoulder Press,Machine Shoulder Press
+Weeks 9-12,Full Body,Nordic Ham Curl,1,1,8-10,10,~1.5 min,Lying Leg Curl,Glute-Ham Raise
+Weeks 9-12,Full Body,Meadows Row,2,2,10-12,9-10,~2 min,Single-Arm DB Row,Pendlay Row
+Weeks 9-12,Full Body,Inverse Zottman Curl,1,1,10-12 (dropset),10,~1.5 min,Hammer Curl,DB Curl
+Weeks 9-12,Full Body,Machine Lateral Raise,1,1,10-12 (dropset),10,~1.5 min,DB Lateral Raise,Cable Lateral Raise
+Weeks 9-12,Full Body,Pec Deck,1,1,10-12 (dropset),10,~1.5 min,Cable Flye,DB Flye
+Weeks 9-12,Upper,Machine Chest Press (Heavy),2-3,1,4-6,8-9,~3 min,Flat DB Press,Weighted Dip
+Weeks 9-12,Upper,Machine Chest Press (Back off),0,1,8-10,9-10,~3 min,Flat DB Press,Weighted Dip
+Weeks 9-12,Upper,Machine Pulldown,2,2,10-12 (dropset),9-10,~2 min,2-Grip Lat Pulldown,Weighted Pullup
+Weeks 9-12,Upper,Cable Shoulder Press,1,2,12-15 (dropset),9-10,~2 min,Machine Shoulder Press,Seated DB Shoulder Press
+Weeks 9-12,Upper,Helms DB Row,1,2,10-12,9-10,~2 min,Chest-Supported T-Bar Row,Machine Row
+Weeks 9-12,Upper,A1: Overhead Cable Triceps Extension,1,2,12-15,10,0 min,EZ Bar Skull Crusher,DB French Press
+Weeks 9-12,Upper,A2: Cable EZ Curl,1,2,12-15,10,~1.5 min,EZ Bar Curl,DB Curl
+Weeks 9-12,Lower,Romanian Deadlift,2,2,10-12,8-9,~2 min,Romanian Deadlift,45° Hyperextension
+Weeks 9-12,Lower,DB Walking Lunge,2,3,8-10,8-9,~2 min,DB Step-Up,DB Bulgarian Split Squat
+Weeks 9-12,Lower,Leg Extension,1,1,12-15 (dropset),9-10,~1.5 min,Goblet Squat,DB Step-Up
+Weeks 9-12,Lower,A1: Standing Calf Raise,1,2,15-20,10,0 min,Seated Calf Raise,Leg Press Toe Press
+Weeks 9-12,Lower,A2: Plate-Weighted Crunch,1,2,12-15,10,~1.5 min,Cable Crunch,Machine Crunch
