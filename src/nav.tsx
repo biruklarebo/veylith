@@ -26,7 +26,10 @@ export type Screen =
   | { kind: 'plan'; templateId?: string; routineId?: string }
   | { kind: 'bodystats' }
   | { kind: 'settings' }
-  | { kind: 'history'; id: string };
+  | { kind: 'history'; id: string }
+  | { kind: 'photos' }
+  | { kind: 'compare'; a: string; b: string }
+  | { kind: 'curated'; id: string };
 
 export type Tab = 'discover' | 'workout' | 'progress';
 
@@ -50,7 +53,7 @@ interface UI {
   set: (p: Partial<Omit<UI, 'set'>>) => void;
 }
 export const useUI = create<UI>((set) => ({
-  tab: 'workout',
+  tab: 'discover',
   workoutTab: 'planned',
   planTab: 'overview',
   dayId: null,

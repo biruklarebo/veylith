@@ -2,7 +2,8 @@ import { useNav } from '../nav';
 import { useStore } from '../store';
 import { uid } from '../lib/calc';
 import { Header } from '../components/ui';
-import type { Focus, Routine } from '../types';
+import { RULES, ruleFor } from '../lib/progression';
+import type { Focus, ProgressionRule, Routine } from '../types';
 
 export function RoutineDetail({ id }: { id: string }) {
   const nav = useNav();
@@ -74,6 +75,17 @@ export function RoutineDetail({ id }: { id: string }) {
             </select>
           </label>
         </div>
+        <label className="prog-pick">
+          <span className="muted small">Progression</span>
+          <div className="seg-ctl" role="radiogroup" aria-label="Progression rule">
+            {RULES.map((x) => (
+              <button key={x.id} role="radio" aria-checked={ruleFor(r) === x.id} className={ruleFor(r) === x.id ? 'on' : ''} onClick={() => patch({ progression: x.id as ProgressionRule })}>
+                {x.name}
+              </button>
+            ))}
+          </div>
+          <span className="muted small">{RULES.find((x) => x.id === ruleFor(r))!.desc}</span>
+        </label>
         <button
           className={`btn block ${r.id === activeRoutineId ? '' : 'primary'}`}
           onClick={() => setActiveRoutine(r.id === activeRoutineId ? null : r.id)}

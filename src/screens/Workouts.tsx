@@ -7,6 +7,7 @@ import { BodyMap, ExerciseThumb, MuscleThumb } from '../components/BodyMap';
 import { ActionSheet, Sheet, type Action } from '../components/Sheet';
 import { Empty } from '../components/ui';
 import { FindHome } from './Find';
+import { GuidedWeek } from './Curated';
 import { BODY_PARTS, EQUIPMENT, WEEKDAYS, type DayItem, type Equipment, type Exercise, type Routine, type WorkoutDay } from '../types';
 
 
@@ -25,7 +26,7 @@ const repsSummary = (it: DayItem) => {
 };
 
 // Start a day, replacing any other workout in progress after confirmation.
-function useStartDay() {
+export function useStartDay() {
   const nav = useNav();
   const { activeSession, startSession } = useStore();
   const [pending, setPending] = useState<{ routineId: string; dayId: string } | null>(null);
@@ -56,8 +57,7 @@ export function Workouts() {
       <nav className="seg-top">
         {(['find', 'planned', 'instant'] as const).map((t) => (
           <button key={t} className={workoutTab === t ? 'on' : ''} onClick={() => set({ workoutTab: t })}>
-            {t === 'find' ? 'Find' : t === 'planned' ? 'Planned' : 'Instant'}
-            {t === 'instant' && <span className="sparkle">✦</span>}
+            {t === 'find' ? 'Discover' : t === 'planned' ? 'Program' : 'Quickstart'}
           </button>
         ))}
       </nav>
@@ -71,16 +71,17 @@ export function Workouts() {
 function Planned() {
   const nav = useNav();
   const ui = useUI();
-  const { routines, activeRoutineId, saveRoutine, deleteRoutine, customExercises } = useStore();
+  const { routines, activeRoutineId, saveRoutine, deleteRoutine, customExercises, setActiveRoutine } = useStore();
   const [menu, setMenu] = useState(false);
+  const [switcher, setSwitcher] = useState(false);
   const r = routines.find((x) => x.id === activeRoutineId);
 
   if (!r)
     return (
-      <Empty title="No plan selected">
-        <p className="muted small">Pick a plan or build your own.</p>
+      <Empty title="No program selected">
+        <p className="muted small">Pick a program or build your own.</p>
         <button className="btn primary" onClick={() => ui.set({ workoutTab: 'find' })}>
-          Find a plan
+          Browse programs
         </button>
       </Empty>
     );
@@ -95,12 +96,13 @@ function Planned() {
   );
 
   const planActions: Action[] = [
-    { label: 'Edit plan details', onClick: () => nav.push({ kind: 'routine', id: r.id }) },
+    { label: 'Switch program', onClick: () => setSwitcher(true) },
+    { label: 'Edit program details', onClick: () => nav.push({ kind: 'routine', id: r.id }) },
     {
-      label: 'Duplicate plan',
+      label: 'Duplicate program',
       onClick: () => saveRoutine({ ...r, id: uid(), name: `${r.name} (copy)`, days: r.days.map((d) => ({ ...d, id: uid() })) }),
     },
-    { label: 'Delete plan', danger: true, onClick: () => deleteRoutine(r.id) },
+    { label: 'Delete program', danger: true, onClick: () => deleteRoutine(r.id) },
   ];
 
   return (
@@ -108,12 +110,16 @@ function Planned() {
       {!ui.heroCollapsed && (
         <section className="plan-hero">
           <BodyMap heat={heat} className="plan-hero-art" />
-          <button className="icon-btn hero-more" onClick={() => setMenu(true)} aria-label="Plan options">
+          <button className="icon-btn hero-more" onClick={() => setMenu(true)} aria-label="Program options">
             •••
           </button>
-          <h1>{r.name}</h1>
-          <button className="btn glass" onClick={() => ui.set({ workoutTab: 'find' })}>
-            All Plans
+          <div className="hero-title">
+            <span className="eyebrow hero-eyebrow">Current program</span>
+            <h1>{r.name}</h1>
+            <GuidedWeek r={r} />
+          </div>
+          <button className="btn glass" onClick={() => setSwitcher(true)}>
+            ⇄ Switch
           </button>
         </section>
       )}
@@ -137,6 +143,52 @@ function Planned() {
       </div>
       {ui.planTab === 'overview' ? <Overview r={r} /> : <DayDetails r={r} />}
       <ActionSheet open={menu} onClose={() => setMenu(false)} title={r.name} actions={planActions} />
+      <Sheet open={switcher} onClose={() => setSwitcher(false)} title="Your programs">
+        <ul className="prog-rows">
+          {routines.map((x) => (
+            <li key={x.id}>
+              <button
+                className={`prog-row ${x.id === r.id ? 'is-current' : ''}`}
+                onClick={() => {
+                  setActiveRoutine(x.id);
+                  ui.set({ planTab: 'overview', dayId: null });
+                  setSwitcher(false);
+                }}
+              >
+                <span className="grow">
+                  <b>{x.name}</b>
+                  <small className="muted block">
+                    {x.days.length} days · {x.author ?? 'You'}
+                  </small>
+                </span>
+                {x.id === r.id ? <span className="pill">Current</span> : <span className="chev">›</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="row gap">
+          <button
+            className="btn grow"
+            onClick={() => {
+              setSwitcher(false);
+              const n: Routine = { id: uid(), name: 'New Program', description: '', difficulty: 1, focus: 'general', daysPerWeek: 3, days: [{ id: uid(), name: 'Day 1', items: [] }], author: 'You' };
+              useStore.getState().adoptPlan(n);
+              nav.push({ kind: 'routine', id: n.id });
+            }}
+          >
+            ＋ New program
+          </button>
+          <button
+            className="btn primary grow"
+            onClick={() => {
+              setSwitcher(false);
+              ui.set({ workoutTab: 'find' });
+            }}
+          >
+            Browse programs
+          </button>
+        </div>
+      </Sheet>
     </>
   );
 }
@@ -395,7 +447,7 @@ function Instant() {
       rest: settings.defaultRest,
     })),
   }));
-  const name = parts.length ? `${parts.map((p) => BODY_PARTS[p]).join(' & ')} Workout` : 'Instant Workout';
+  const name = parts.length ? `${parts.map((p) => BODY_PARTS[p]).join(' & ')} Workout` : 'Quick Workout';
   const plan = routines.find((r) => r.id === activeRoutineId);
 
   return (

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useNav } from '../nav';
 import { BODY_PARTS } from '../types';
 
@@ -76,6 +76,40 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
     <div className="empty">
       <p className="empty-title">{title}</p>
       {children}
+    </div>
+  );
+}
+
+export interface ToastMsg {
+  id: number;
+  text: string;
+  action?: string;
+  onAction?: () => void;
+}
+
+// Bottom toast with an optional action (Undo). Disappears after a few seconds.
+export function Toast({ msg, onDone }: { msg: ToastMsg | null; onDone: () => void }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => done.current(), 4000);
+    return () => clearTimeout(t);
+  }, [msg]);
+  if (!msg) return null;
+  return (
+    <div className="toast" role="status" key={msg.id}>
+      <span className="grow">{msg.text}</span>
+      {msg.action && (
+        <button
+          onClick={() => {
+            msg.onAction?.();
+            onDone();
+          }}
+        >
+          {msg.action}
+        </button>
+      )}
     </div>
   );
 }

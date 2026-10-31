@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNav } from '../nav';
 import { useExercise, useExercises, useStore } from '../store';
+import { ExerciseArt, hasArt } from '../components/ExerciseArt';
 import { fmtWeight, fromDisplay, logBest1RM, toDisplay, weightForReps } from '../lib/calc';
 import { Empty, Header, PartBadge } from '../components/ui';
 import { LineChart } from '../components/LineChart';
@@ -201,6 +202,12 @@ export function ExerciseDetail({ id }: { id: string }) {
   return (
     <div className="page">
       <Header title={ex.name} />
+      {hasArt(ex.id) && (
+        <section className="card art-card">
+          <ExerciseArt exerciseId={ex.id} className="detail-ek" />
+          <small className="muted">Illustration: Everkinetic, CC BY-SA 4.0</small>
+        </section>
+      )}
       <section className="card row gap">
         <PartBadge part={ex.bodyPart} size={56} />
         <div>
