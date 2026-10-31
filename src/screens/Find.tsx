@@ -100,6 +100,9 @@ export function FindHome() {
             ✕
           </button>
         )}
+        <button className="disc-ex" onClick={() => nav.push({ kind: 'library' })}>
+          Exercises
+        </button>
         <button className="disc-filter" onClick={() => setFilterOpen(true)} aria-label="Filter programs">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
             <path d="M3 6h18M6 12h12M10 18h4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />

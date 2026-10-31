@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { useNav, useUI } from '../nav';
-import { findExercise, useExercises, useStore } from '../store';
+import { findExercise, useStore } from '../store';
 import { dayKey, estDaySeconds, fmtEst, fmtHMS, muscleHeat, weekStreak } from '../lib/calc';
 import { todayPlan } from '../lib/plans';
 import { useNow } from '../lib/alarm';
-import { BodyMap, Figure } from '../components/BodyMap';
+import { BodyMap } from '../components/BodyMap';
+import { weeklyCheckIn, type CheckAction } from '../lib/checkin';
 import { BodyWeightCard } from '../components/BodyWeightCard';
 import { Sheet } from '../components/Sheet';
 import { useStartDay } from './Workouts';
-import { BODY_PARTS, type Exercise, type WorkoutDay } from '../types';
+import type { Exercise, WorkoutDay } from '../types';
 
-const LEGS = new Set([5, 8, 9]);
-const BACK = new Set([1, 5, 7]);
 
 const dayHeat = (d: WorkoutDay, custom: Exercise[]) =>
   muscleHeat(d.items.flatMap((it) => {
@@ -21,7 +20,6 @@ const dayHeat = (d: WorkoutDay, custom: Exercise[]) =>
 
 export function Discover() {
   const nav = useNav();
-  const exercises = useExercises();
   const now = new Date();
   return (
     <div className="page">
@@ -37,44 +35,9 @@ export function Discover() {
 
       <TodayCard />
 
+      <CheckInCard />
+
       <BodyWeightCard />
-
-      <button className="search fake" onClick={() => nav.push({ kind: 'library' })}>
-        ⌕ Search {exercises.length} exercises
-      </button>
-
-      <h3 className="section-title">Train by muscle</h3>
-      <div className="muscle-grid">
-        {BODY_PARTS.map((name, i) => {
-          const heat = Array(11).fill(0);
-          heat[i] = 1;
-          const n = exercises.filter((e) => e.bodyPart === i).length;
-          return (
-            <button key={name} className="muscle-tile" onClick={() => nav.push({ kind: 'library', part: i })}>
-              {i === 10 ? (
-                <span className="cardio-ico">♥</span>
-              ) : (
-                <Figure view={BACK.has(i) ? 'back' : 'front'} crop={LEGS.has(i) ? 'lower' : 'upper'} heat={heat} />
-              )}
-              <b>{name}</b>
-              <span className="muted small">{n} exercises</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <h3 className="section-title">Tools</h3>
-      <ul className="list">
-        <li>
-          <button className="list-item" onClick={() => nav.push({ kind: 'library' })}>
-            <span className="grow">
-              <b>Create a custom exercise</b>
-              <span className="muted small block">Add anything missing from the library</span>
-            </span>
-            <span className="chev">›</span>
-          </button>
-        </li>
-      </ul>
     </div>
   );
 }
@@ -225,6 +188,72 @@ function TodayCard() {
           Quickstart a custom workout
         </button>
       </Sheet>
+      {confirm}
+    </section>
+  );
+}
+
+const TONE_ICON = { win: '★', watch: '!', tip: '→' } as const;
+
+// Rules-based weekly review: wins, things to watch and tips, each optionally one tap from a fix.
+function CheckInCard() {
+  const nav = useNav();
+  const { sessions, customExercises, routines, activeRoutineId, bodyStats, settings } = useStore();
+  const { start, confirm } = useStartDay();
+  const [open, setOpen] = useState(true);
+  const routine = routines.find((r) => r.id === activeRoutineId);
+  const c = weeklyCheckIn(sessions, (id) => findExercise(id, customExercises), routine, bodyStats, settings);
+  const end = new Date(c.from + 6 * 864e5);
+  const range = `${new Date(c.from).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+  const act = (to: CheckAction) => {
+    if (to.kind === 'exercise') nav.push({ kind: 'exercise', id: to.id });
+    if (to.kind === 'progress') nav.reset('progress');
+    if (to.kind === 'program') {
+      useUI.getState().set({ workoutTab: 'planned', planTab: 'overview', dayId: null });
+      nav.reset('workout');
+    }
+    if (to.kind === 'start') {
+      const day = todayPlan(routine, sessions).day;
+      if (routine && day) start(routine.id, day.id);
+    }
+  };
+
+  return (
+    <section className="card checkin">
+      <button className="checkin-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="checkin-ico" aria-hidden>
+          ✓
+        </span>
+        <span className="grow">
+          <b className="block">Weekly check-in</b>
+          <small className="muted">
+            {range}
+            {c.planned ? ` · ${c.done}/${c.planned} workouts` : ''}
+          </small>
+        </span>
+        <span className={`chev-d ${open ? 'up' : ''}`}>⌄</span>
+      </button>
+      {open &&
+        (c.items.length ? (
+          <ul className="checkin-list">
+            {c.items.map((it, i) => (
+              <li key={i} className={`ci ${it.tone}`} style={{ animationDelay: `${i * 40}ms` }}>
+                <span className="ci-ico" aria-hidden>
+                  {TONE_ICON[it.tone]}
+                </span>
+                <span className="grow">{it.text}</span>
+                {it.action && (
+                  <button className="ci-act" onClick={() => act(it.action!.to)}>
+                    {it.action.label}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted small">Log a few workouts and your check-in fills in: progress on your lifts, stalls, weak spots and what to do next.</p>
+        ))}
       {confirm}
     </section>
   );
