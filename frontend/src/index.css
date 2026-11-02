@@ -693,6 +693,13 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .ws-day.done i { background: var(--accent); }
 .ws-day.planned i { border: 1.5px solid var(--accent); }
 .ws-day.today b { background: var(--accent); color: var(--accent-ink); }
+.week-strip.month { gap: 2px; }
+.week-strip.month .ws-day { min-height: 46px; padding: 2px 0; gap: 2px; }
+.week-strip.month .ws-day b { font-size: 15px; width: 30px; height: 30px; }
+.ws-day.out b { color: var(--muted); }
+.ws-day.out.today b { color: var(--accent-ink); }
+.planned-row { display: flex; align-items: center; gap: 6px; }
+.planned-row .list-item { flex: 1; min-width: 0; }
 @keyframes ws-pop { from { transform: scale(.6); opacity: 0; } }
 .today-row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: var(--surface-2); }
 .today-row .eyebrow { display: block; margin-bottom: 2px; }

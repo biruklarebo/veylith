@@ -6,7 +6,7 @@ import { dayKey } from '../lib/calc';
 import type { EffortScale, Routine } from '../types';
 
 export function SettingsScreen() {
-  const { settings, updateSettings, sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, photos } = useStore();
+  const { settings, updateSettings, sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, photos, schedule } = useStore();
 
   const exportData = async () => {
     const photoData: Record<string, string> = {};
@@ -14,7 +14,7 @@ export function SettingsScreen() {
       const b = await loadPhotoBlob(p.id);
       if (b) photoData[p.id] = await blobToDataUrl(b);
     }
-    const data = { sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, settings, photos, photoData };
+    const data = { sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, schedule, settings, photos, photoData };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -43,6 +43,7 @@ export function SettingsScreen() {
           customExercises: d.customExercises ?? [],
           records: d.records ?? {},
           curated: d.curated ?? curated,
+          schedule: d.schedule ?? [],
           photos: d.photos ?? photos,
           settings: { ...settings, ...d.settings },
         });

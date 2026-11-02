@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNav, useUI } from '../nav';
 import { findExercise, useStore } from '../store';
 import { dayKey, estDaySeconds, fmtEst, fmtHMS, muscleHeat, weekStreak } from '../lib/calc';
-import { todayPlan } from '../lib/plans';
+import { plannedOn, todayPlan } from '../lib/plans';
 import { useNow } from '../lib/alarm';
 import { BodyMap } from '../components/BodyMap';
 import { weeklyCheckIn, type CheckAction } from '../lib/checkin';
@@ -43,56 +43,92 @@ export function Discover() {
   );
 }
 
-// This week at a glance plus what the plan says to do today.
-function TodayCard() {
-  const nav = useNav();
-  const { routines, activeRoutineId, sessions, activeSession, customExercises } = useStore();
-  const { start, confirm } = useStartDay();
-  const now = useNow(activeSession ? 1000 : 60000);
-  const [weekOff, setWeekOff] = useState(0);
-  const [choose, setChoose] = useState(false);
+// Moves through weeks or months without limit, past or future. Any day opens its sheet to review
+// or plan it.
+function DayCalendar({ now, streak }: { now: number; streak: number }) {
+  const { routines, activeRoutineId, sessions, schedule } = useStore();
+  const [month, setMonth] = useState(false);
+  const [off, setOff] = useState(0);
   const [picked, setPicked] = useState<Date | null>(null);
   const routine = routines.find((r) => r.id === activeRoutineId);
-  const plan = todayPlan(routine, sessions);
-  const streak = weekStreak(sessions);
 
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + weekOff * 7);
+  const first = new Date(now);
+  first.setHours(0, 0, 0, 0);
+  if (month) first.setMonth(first.getMonth() + off, 1);
+  else first.setDate(first.getDate() + off * 7);
+  const inMonth = first.getMonth();
+  const start = new Date(first);
+  start.setDate(first.getDate() - ((first.getDay() + 6) % 7));
+  const count = month ? Math.ceil(((first.getDay() + 6) % 7 + new Date(first.getFullYear(), inMonth + 1, 0).getDate()) / 7) * 7 : 7;
+
   const done = new Set(sessions.map((s) => dayKey(s.start)));
-  const pinned = new Set(routine?.days.filter((d) => d.weekday !== undefined).map((d) => d.weekday!));
   const todayKey = dayKey(now);
-  const label = weekOff === 0 ? 'This week' : weekOff === -1 ? 'Last week' : weekOff === 1 ? 'Next week' : monday.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const weekLabel = off === 0 ? 'This week' : off === -1 ? 'Last week' : off === 1 ? 'Next week' : start.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const noun = month ? 'month' : 'week';
 
-  const day = plan.day;
   return (
-    <section className="card today-card">
+    <>
       <div className="week-nav">
-        <button className="icon-btn" onClick={() => setWeekOff((w) => w - 1)} aria-label="Previous week">
+        <button className="icon-btn" onClick={() => setOff((o) => o - 1)} aria-label={`Previous ${noun}`}>
           ‹
         </button>
-        <span className="grow center muted">{label}</span>
-        {streak > 0 && weekOff === 0 && <span className="streak-chip">🔥 {streak}</span>}
-        <button className="icon-btn" onClick={() => setWeekOff((w) => w + 1)} aria-label="Next week">
+        <span className="grow center muted">{month ? first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : weekLabel}</span>
+        {off !== 0 ? (
+          <button className="btn small" onClick={() => setOff(0)}>
+            Today
+          </button>
+        ) : (
+          streak > 0 && <span className="streak-chip">🔥 {streak}</span>
+        )}
+        <button
+          className="btn small"
+          onClick={() => {
+            setMonth((m) => !m);
+            setOff(0);
+          }}
+        >
+          {month ? 'Week' : 'Month'}
+        </button>
+        <button className="icon-btn" onClick={() => setOff((o) => o + 1)} aria-label={`Next ${noun}`}>
           ›
         </button>
       </div>
-      <div className="week-strip" key={weekOff}>
-        {Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(monday);
-          d.setDate(monday.getDate() + i);
+      <div className={`week-strip ${month ? 'month' : ''}`} key={`${noun}${off}`}>
+        {Array.from({ length: count }, (_, i) => {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
           const k = dayKey(d);
           const logged = done.has(k);
-          const cls = [k === todayKey ? 'today' : '', logged ? 'done' : '', !logged && pinned.has(i) && k >= todayKey ? 'planned' : ''].join(' ');
+          const planned = !logged && plannedOn(d, routine, schedule, sessions).length > 0;
+          const cls = [k === todayKey ? 'today' : '', logged ? 'done' : '', planned ? 'planned' : '', month && d.getMonth() !== inMonth ? 'out' : ''].join(' ');
           return (
-            <button key={i} className={`ws-day ${cls}`} style={{ animationDelay: `${i * 30}ms` }} onClick={() => setPicked(d)} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (logged ? ', workout logged' : '')}>
-              <span>{d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2).toUpperCase()}</span>
+            <button key={k} className={`ws-day ${cls}`} style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }} onClick={() => setPicked(d)} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (logged ? ', workout logged' : planned ? ', workout planned' : '')}>
+              {i < 7 && <span>{d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2).toUpperCase()}</span>}
               <b>{d.getDate()}</b>
               <i />
             </button>
           );
         })}
       </div>
+      <DaySheet date={picked} onClose={() => setPicked(null)} />
+    </>
+  );
+}
+
+// The calendar plus what the plan says to do today.
+function TodayCard() {
+  const nav = useNav();
+  const { routines, activeRoutineId, sessions, activeSession, customExercises, schedule } = useStore();
+  const { start, confirm } = useStartDay();
+  const now = useNow(activeSession ? 1000 : 60000);
+  const [choose, setChoose] = useState(false);
+  const routine = routines.find((r) => r.id === activeRoutineId);
+  const plan = todayPlan(routine, sessions, schedule);
+
+  const day = plan.day;
+  return (
+    <section className="card today-card">
+      <DayCalendar now={now} streak={weekStreak(sessions)} />
 
       {activeSession ? (
         <div className="today-row">
@@ -189,7 +225,6 @@ function TodayCard() {
           Quickstart a custom workout
         </button>
       </Sheet>
-      <DaySheet date={picked} onClose={() => setPicked(null)} />
       {confirm}
     </section>
   );
@@ -200,7 +235,7 @@ const TONE_ICON = { win: '★', watch: '!', tip: '→' } as const;
 // Rules-based weekly review: wins, things to watch and tips, each optionally one tap from a fix.
 function CheckInCard() {
   const nav = useNav();
-  const { sessions, customExercises, routines, activeRoutineId, bodyStats, settings } = useStore();
+  const { sessions, customExercises, routines, activeRoutineId, bodyStats, settings, schedule } = useStore();
   const { start, confirm } = useStartDay();
   const [open, setOpen] = useState(true);
   const routine = routines.find((r) => r.id === activeRoutineId);
@@ -218,7 +253,7 @@ function CheckInCard() {
     if (to.kind === 'program') openProgram();
     if (to.kind === 'start') {
       // A rest day has nothing to start: open the program so another day can be picked.
-      const day = todayPlan(routine, sessions).day;
+      const day = todayPlan(routine, sessions, schedule).day;
       if (routine && day) start(routine.id, day.id);
       else openProgram();
     }

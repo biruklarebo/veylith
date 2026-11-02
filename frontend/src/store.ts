@@ -9,7 +9,7 @@ import { nextTarget, ruleFor } from './lib/progression';
 import { blockFor, currentWeek, daysForWeek, guessExercise, matchExercise, nameKey, parseProgram, type ParsedProgram } from './lib/programImport';
 import { SEED_PROGRAMS } from './data/programs';
 import type {
-  BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
+  BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, ScheduledDay, Session, Settings, WorkoutDay,
 } from './types';
 
 const idbStorage: StateStorage = {
@@ -49,6 +49,7 @@ interface State {
   bodyStats: BodyStat[];
   photos: ProgressPhoto[];
   curated: CuratedProgram[];
+  schedule: ScheduledDay[];
   settings: Settings;
 
   addCustomExercise: (e: Omit<Exercise, 'id' | 'custom'>) => Exercise;
@@ -58,6 +59,8 @@ interface State {
   adoptPlan: (r: Routine) => void;
   updateDay: (routineId: string, day: WorkoutDay) => void;
   moveDay: (routineId: string, from: number, to: number) => void;
+  scheduleDay: (date: string, routineId: string, dayId: string) => void;
+  unscheduleDay: (date: string, routineId: string, dayId: string) => void;
 
   startSession: (routineId?: string, dayId?: string) => void;
   startInstant: (name: string, items: DayItem[]) => void;
@@ -165,6 +168,7 @@ export const useStore = create<State>()(
       bodyStats: [],
       photos: [],
       curated: seeded.curated,
+      schedule: [],
       settings: { unit: 'lb', defaultRest: 90, restTimerOn: true },
 
       addCustomExercise: (e) => {
@@ -201,6 +205,9 @@ export const useStore = create<State>()(
             return { ...r, days };
           }),
         })),
+      scheduleDay: (date, routineId, dayId) => setState((s) => ({ schedule: [...s.schedule, { date, routineId, dayId }] })),
+      unscheduleDay: (date, routineId, dayId) =>
+        setState((s) => ({ schedule: s.schedule.filter((x) => !(x.date === date && x.routineId === routineId && x.dayId === dayId)) })),
 
       startSession: (routineId, dayId) => {
         getState().refreshGuided();

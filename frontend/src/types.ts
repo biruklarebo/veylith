@@ -51,6 +51,13 @@ export interface WorkoutDay {
   items: DayItem[];
 }
 
+// A program day planned for one calendar date, on top of any weekly pin.
+export interface ScheduledDay {
+  date: string; // YYYY-MM-DD
+  routineId: string;
+  dayId: string;
+}
+
 export type Focus = 'general' | 'bulking' | 'cutting' | 'strength' | 'maintaining';
 export type Location = 'gym' | 'home';
 

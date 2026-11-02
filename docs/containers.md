@@ -2,7 +2,7 @@
 
 Every container is defined in `compose.yaml` at the repo root and managed with `stack.sh`. Docker must be running.
 
-On Windows, run it from Git Bash with Docker Desktop running. Avoid `bash ./stack.sh` in PowerShell: that `bash` is WSL, which can reach a separate Docker engine and start a second copy of a service on the same port.
+On Windows, run it from Ubuntu in WSL with Docker Desktop closed, so it uses the Docker engine installed in Ubuntu. Stick to one engine: Docker Desktop is a separate engine, so running the script from both starts two copies of a service on the same port, and `localhost` can keep showing the older one. While Docker Desktop is open with WSL integration on, `docker` in Ubuntu reaches Docker Desktop instead of Ubuntu's engine. Run `docker info --format '{{.Name}}'` to see which one you're on.
 
 ## Running
 
