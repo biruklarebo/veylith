@@ -3,7 +3,7 @@ import { NavContext, useUI, type Nav, type Screen, type Tab } from './nav';
 import { findExercise, useStore } from './store';
 import { fmtHMS } from './lib/calc';
 import { beep, flashScreen, useWakeLock } from './lib/alarm';
-import { useAccount } from './lib/pb';
+import { useAccount } from './lib/api';
 import { startSync } from './lib/sync';
 import { Discover } from './screens/Discover';
 import { Login } from './screens/Login';

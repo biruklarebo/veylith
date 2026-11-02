@@ -1,0 +1,15 @@
+{
+  "name": "veylith-backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^10.3.0",
+    "fastify": "^5.12.8",
+    "jose": "^6.2.15",
+    "pg": "^8.23.1"
+  }
+}

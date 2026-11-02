@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import type { RecordModel } from 'pocketbase';
 import { useNav } from '../nav';
-import { pb, useAccount } from '../lib/pb';
+import { avatarUrl, useAccount, type Account } from '../lib/api';
 
 // A person's picture, or their first initial when there is none or it can't load (offline).
-export function Avatar({ user }: { user: RecordModel }) {
+export function Avatar({ user }: { user: Account }) {
   const [failedFor, setFailedFor] = useState<string>();
   const label = user.name || user.email || '?';
   if (user.avatar && failedFor !== user.avatar) {
-    return <img className="avatar" src={pb.files.getURL(user, user.avatar)} alt={label} onError={() => setFailedFor(user.avatar)} />;
+    return <img className="avatar" src={avatarUrl(user)} alt={label} onError={() => setFailedFor(user.avatar ?? undefined)} />;
   }
   return (
     <span className="avatar" role="img" aria-label={label}>

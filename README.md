@@ -1,26 +1,29 @@
 # Veylith
 
-A workout planner and tracker: a React PWA (Vite + React + TypeScript, Zustand) with accounts and a PocketBase backend. Data lives in the backend, and each device keeps a copy in IndexedDB so workouts carry on without a connection.
+A workout planner and tracker: a React PWA (Vite + React + TypeScript, Zustand) with a Node.js API and a PostgreSQL database. Data lives in the database, and each device keeps a copy in IndexedDB so workouts carry on without a connection.
 
 ```mermaid
 flowchart LR
     browser["Browser or phone"]
     idb[("IndexedDB<br/>device copy")]
     frontend["frontend container<br/>nginx, port 8088"]
-    backend["backend container<br/>PocketBase, port 8090"]
-    volume[("backend_data volume<br/>source of truth")]
+    backend["backend container<br/>API, port 8090"]
+    database["database container<br/>PostgreSQL"]
+    volume[("database_data volume<br/>source of truth")]
 
     browser <-- "app and /api" --> frontend
     browser <--> idb
     frontend -- "forwards /api" --> backend
-    backend <--> volume
+    backend <--> database
+    database <--> volume
 ```
 
 ## Structure
 
 ```
 frontend/      React app and its container
-backend/       PocketBase container, migrations and hooks
+backend/       API container and database migrations
+database/      PostgreSQL container
 docs/          Documentation
 compose.yaml   All containers
 stack.sh       Manages the containers
@@ -30,7 +33,7 @@ Each new container gets its own top-level folder.
 
 ## Run
 
-In containers, with the app at http://localhost:8088 and the backend dashboard at http://localhost:8090/_/:
+In containers, with the app at http://localhost:8088:
 
 ```bash
 ./stack.sh start     # start everything
@@ -42,11 +45,12 @@ In containers, with the app at http://localhost:8088 and the backend dashboard a
 ./stack.sh help      # list all commands
 ```
 
-Create a backend admin once, and back up the database whenever you like:
+The first run creates `.env` with generated secrets. To look after the database:
 
 ```bash
-./stack.sh pb admin you@example.com
-./stack.sh pb backup
+./stack.sh db status   # migrations and table sizes
+./stack.sh db ui       # browse it in a web page
+./stack.sh db backup   # save it to backups/
 ```
 
 On Windows, run it from Ubuntu in WSL with Docker Desktop closed (see [Containers](docs/containers.md)).
@@ -65,3 +69,4 @@ npm run build
 - [Features](docs/features.md)
 - [Containers](docs/containers.md)
 - [Backend](docs/backend.md)
+- [Database](docs/database.md)

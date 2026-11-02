@@ -5,7 +5,7 @@ import { Header, NumField } from '../components/ui';
 import { DEFAULT_BAR, DEFAULT_PLATES, barOf, platesOf } from '../lib/plates';
 import { blobToDataUrl, dataUrlToBlob, deletePhotoBlob, loadPhotoBlob, savePhotoBlob, shrinkImage } from '../lib/photos';
 import { dayKey } from '../lib/calc';
-import { pb, useAccount } from '../lib/pb';
+import { removeAvatar, setAvatar, updateName, useAccount } from '../lib/api';
 import { signOut, useSyncWaiting } from '../lib/sync';
 import type { EffortScale, Routine } from '../types';
 
@@ -16,13 +16,12 @@ function ProfileCard() {
   const [name, setName] = useState<string>(user?.name ?? '');
   if (!user) return null;
 
-  const update = (body: Record<string, unknown>) =>
-    pb.collection('users').update(user.id, body).catch(() => alert('Could not save that. Check your connection and try again.'));
+  const save = (change: Promise<void>) => change.catch(() => alert('Could not save that. Check your connection and try again.'));
 
   const changePicture = async (file: File) => {
     try {
       const { blob } = await shrinkImage(file, AVATAR_PX);
-      await update({ avatar: new File([blob], 'avatar.jpg', { type: 'image/jpeg' }) });
+      await save(setAvatar(blob));
     } catch {
       alert('That file could not be read as a picture.');
     }
@@ -42,7 +41,7 @@ function ProfileCard() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => {
-              if (name.trim() !== user.name) update({ name: name.trim() });
+              if (name.trim() !== user.name) save(updateName(name.trim()));
             }}
           />
           <p className="muted small">Signed in as {user.email}</p>
@@ -64,7 +63,7 @@ function ProfileCard() {
           />
         </label>
         {user.avatar && (
-          <button className="btn grow" onClick={() => update({ avatar: null })}>
+          <button className="btn grow" onClick={() => save(removeAvatar())}>
             Remove picture
           </button>
         )}

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { pb } from '../lib/pb';
+import { googleFailed, googleReturn, register, signIn, signInMethods, signInWithGoogle, type ApiError } from '../lib/api';
 
 const MIN_PASSWORD = 8;
 
@@ -8,16 +8,17 @@ export function Login() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(googleFailed ? 'Could not sign in with Google. Try again.' : '');
   const [busy, setBusy] = useState(false);
   const [google, setGoogle] = useState(false);
+  const [returning, setReturning] = useState(true);
 
   // Shown only when the backend has Google sign-in set up.
   useEffect(() => {
-    pb.collection('users')
-      .listAuthMethods()
-      .then((m) => setGoogle(m.oauth2.providers.some((p) => p.name === 'google')))
+    signInMethods()
+      .then((m) => setGoogle(m.google))
       .catch(() => setGoogle(false));
+    googleReturn.finally(() => setReturning(false));
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -25,12 +26,13 @@ export function Login() {
     setBusy(true);
     setError('');
     try {
-      if (creating) await pb.collection('users').create({ name: name.trim(), email, password, passwordConfirm: password });
-      await pb.collection('users').authWithPassword(email, password);
+      if (creating) await register(name.trim(), email, password);
+      else await signIn(email, password);
     } catch (err) {
-      const status = (err as { status?: number }).status;
+      const status = (err as ApiError).status;
       setError(
         !status ? 'Could not reach the server. Check your connection and try again.'
+          : status === 429 ? 'Too many tries. Wait a minute and try again.'
           : creating ? 'Could not create that account. It may already exist, or the email may be invalid.'
             : 'Wrong email or password.',
       );
@@ -38,16 +40,7 @@ export function Login() {
     setBusy(false);
   };
 
-  // Runs straight from the tap: Safari blocks the pop-up if anything is awaited first.
-  const signInWithGoogle = async () => {
-    setError('');
-    try {
-      await pb.collection('users').authWithOAuth2({ provider: 'google' });
-    } catch (err) {
-      // Closing the pop-up is a change of mind, not a failure.
-      if (!(err as { isAbort?: boolean }).isAbort) setError('Could not sign in with Google. Try again.');
-    }
-  };
+  if (returning) return <div className="splash">Veylith</div>;
 
   return (
     <div className="page login">

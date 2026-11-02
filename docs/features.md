@@ -116,7 +116,7 @@ flowchart TD
 
 ## Data
 
-Sign in with Google, or with an email and password. Each account has a name and profile picture, editable in Settings. Data is stored in your account on the [backend](backend.md), and each device keeps a copy so the app works without a connection and catches up afterwards. Data already on a device uploads on first sign-in. Settings → Data exports/imports a JSON backup of everything, including progress photos.
+Sign in with Google, or with an email and password. Each account has a name and profile picture, editable in Settings. Data is stored in your account in the [database](database.md), and each device keeps a copy so the app works without a connection and catches up afterwards. Data already on a device uploads on first sign-in. Settings → Data exports/imports a JSON backup of everything, including progress photos.
 
 ```mermaid
 erDiagram

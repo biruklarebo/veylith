@@ -1,6 +1,7 @@
 # Every container in the stack lives here. Each one gets its own top-level
 # folder with its Dockerfile, and stack.sh controls it automatically.
 # Services reach each other by service name (e.g. http://frontend:8080).
+# Settings and secrets come from .env, which stack.sh creates on first use.
 name: veylith
 
 services:
@@ -17,25 +18,23 @@ services:
       start_period: 5s
 
   backend:
-    build:
-      context: ./backend
-      args:
-        POCKETBASE_VERSION: ${POCKETBASE_VERSION:-0.40.6}
-    command:
-      - serve
-      - --http=0.0.0.0:8090
-      - --origins=${BACKEND_ORIGINS:-http://localhost:8088,http://localhost:5173}
+    build: ./backend
+    depends_on:
+      database:
+        condition: service_healthy
     environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-veylith}:${POSTGRES_PASSWORD:?run ./stack.sh to create .env}@database:5432/${POSTGRES_DB:-veylith}
+      JWT_SECRET: ${JWT_SECRET:?run ./stack.sh to create .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_AUTH_URL: ${GOOGLE_AUTH_URL:-}
+      GOOGLE_TOKEN_URL: ${GOOGLE_TOKEN_URL:-}
+      GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-}
     ports:
       - "${BACKEND_HOST:-127.0.0.1}:${BACKEND_PORT:-8090}:8090"
     volumes:
-      # The database and uploaded files. Survives rebuilds and `down`.
-      - backend_data:/pb/pb_data
-      # Live from the repo, so changes made in the dashboard land in git.
-      - ./backend/pb_migrations:/pb/pb_migrations
-      - ./backend/pb_hooks:/pb/pb_hooks
+      # Live from the repo, so a new migration only needs a restart.
+      - ./backend/migrations:/app/migrations:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
@@ -44,5 +43,37 @@ services:
       retries: 3
       start_period: 5s
 
+  # No published port: only other containers can reach the database.
+  database:
+    build:
+      context: ./database
+      args:
+        POSTGRES_VERSION: ${POSTGRES_VERSION:-17}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-veylith}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./stack.sh to create .env}
+      POSTGRES_DB: ${POSTGRES_DB:-veylith}
+    volumes:
+      # All app data. Survives rebuilds and `down`.
+      - database_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # Browse the database in a web page. Only runs with: ./stack.sh db ui
+  adminer:
+    image: adminer:5
+    profiles: [tools]
+    depends_on:
+      - database
+    environment:
+      ADMINER_DEFAULT_SERVER: database
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8091}:8080"
+
 volumes:
-  backend_data:
+  database_data:

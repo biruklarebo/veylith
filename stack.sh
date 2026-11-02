@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Manages every container in compose.yaml. Services are never listed here, so
-# new ones work as soon as they are added to that file. Only the `pb` commands
+# new ones work as soon as they are added to that file. Only the `db` commands
 # know about a specific service.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -31,13 +31,14 @@ Other
   shell <service>       Open a shell inside a container
   services              List services in compose.yaml
 
-Backend (PocketBase)
-  pb admin <email>      Create a dashboard admin, or change its password
-  pb backup [name]      Save the database to backups/
-  pb restore [file]     Replace the database with a backup (lists them if no file)
-  pb reset              Erase the database, keeping a backup first
-  pb migrate <args>     Run PocketBase migrations (create <name>, up, down [n])
-  pb version            Show the PocketBase version
+Database
+  db shell              Open a SQL prompt
+  db ui                 Browse the database in a web page
+  db status             Show applied migrations and table sizes
+  db new <name>         Create a migration file to edit
+  db backup [name]      Save the database to backups/
+  db restore [file]     Replace the database with a backup (lists them if no file)
+  db reset              Erase the database, keeping a backup first
 
 With no services given, a command applies to the whole stack.
 EOF
@@ -117,27 +118,12 @@ open_shell() {
   fi
 }
 
-pb_exec() {
-  if [ -t 0 ]; then
-    compose exec backend /pb/pocketbase "$@"
-  else
-    compose exec -T backend /pb/pocketbase "$@"
-  fi
+# Runs inside the database container, signed in with its own settings.
+db_exec() {
+  compose exec -T database sh -c "$1"
 }
 
-# Run a shell command against the data volume in a throwaway backend container.
-pb_data() {
-  compose run --rm --no-deps -T --entrypoint sh backend -c "$1"
-}
-
-# SQLite must not be written to while its files are copied. The backend comes
-# back on exit, even if the command fails partway.
-pb_pause() {
-  compose stop backend
-  trap 'compose up -d --wait backend' EXIT
-}
-
-pb_confirm() {
+db_confirm() {
   local answer
   read -r -p "$1 Type yes to continue: " answer
   if [ "$answer" != yes ]; then
@@ -146,64 +132,111 @@ pb_confirm() {
   fi
 }
 
-pb_admin() {
-  if [ $# -ne 1 ]; then
-    echo "Usage: ./stack.sh pb admin <email>" >&2
-    exit 1
-  fi
-  local password
-  read -r -s -p "Password (at least 10 characters): " password
-  echo
-  pb_exec superuser upsert "$1" "$password"
-  echo "Sign in at http://localhost:${BACKEND_PORT:-8090}/_/"
+# The backend comes back on exit, even if the command fails partway.
+db_pause() {
+  compose stop backend
+  trap 'compose up -d --wait backend' EXIT
 }
 
-pb_backup() {
-  local file="backups/${1:-backend-$(date +%Y%m%d-%H%M%S)}.tar.gz"
+db_shell() {
+  if [ -t 0 ]; then
+    compose exec database sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+  else
+    db_exec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+  fi
+}
+
+db_ui() {
+  compose --profile tools up -d adminer
+  # shellcheck disable=SC1091 # created by ensure_env
+  . ./.env
+  echo "Open http://localhost:${ADMINER_PORT:-8091}"
+  echo "System: PostgreSQL, Server: database, Username: ${POSTGRES_USER:-veylith}, Database: ${POSTGRES_DB:-veylith}"
+  echo "The password is POSTGRES_PASSWORD in .env"
+}
+
+db_status() {
+  db_exec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT name, applied_at FROM schema_migrations ORDER BY name" -c "SELECT relname AS table, n_live_tup AS rows, pg_size_pretty(pg_total_relation_size(relid)) AS size FROM pg_stat_user_tables ORDER BY relname"'
+}
+
+db_new() {
+  if [ $# -ne 1 ]; then
+    echo "Usage: ./stack.sh db new <name>" >&2
+    exit 1
+  fi
+  local last next file
+  last=$(ls backend/migrations | sed -nE 's/^([0-9]+)_.*/\1/p' | sort -n | tail -1)
+  next=$(printf '%03d' $((10#${last:-0} + 1)))
+  file="backend/migrations/${next}_$1.sql"
+  echo "-- $1" >"$file"
+  echo "$file"
+  echo "Edit it, then run: ./stack.sh db backup && ./stack.sh restart backend"
+}
+
+db_backup() {
+  local file="backups/${1:-database-$(date +%Y%m%d-%H%M%S)}.dump"
   mkdir -p backups
-  pb_pause
-  pb_data 'tar czf - -C /pb pb_data' >"$file.part"
+  db_exec 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' >"$file.part"
   mv "$file.part" "$file"
   echo "$file"
 }
 
-pb_restore() {
+db_restore() {
   if [ $# -eq 0 ]; then
-    ls -1 backups/*.tar.gz 2>/dev/null || echo "No backups yet."
+    ls -1 backups/*.dump 2>/dev/null || echo "No backups yet."
     return
   fi
-  if ! gzip -dc <"$1" | tar tf - | grep '^pb_data/data\.db$' >/dev/null; then
-    echo "$1 is not a backend backup." >&2
+  if ! compose exec -T database pg_restore -l <"$1" >/dev/null 2>&1; then
+    echo "$1 is not a database backup." >&2
     exit 1
   fi
-  pb_confirm "This replaces the database with $1."
-  pb_backup "before-restore-$(date +%Y%m%d-%H%M%S)"
-  pb_data 'find /pb/pb_data -mindepth 1 -delete && tar xzf - -C /pb' <"$1"
+  db_confirm "This replaces the database with $1."
+  db_backup "before-restore-$(date +%Y%m%d-%H%M%S)"
+  db_pause
+  db_exec 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
+  db_exec 'pg_restore --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <"$1"
 }
 
-pb_reset() {
-  pb_confirm "This erases the database, including all accounts."
-  pb_backup "before-reset-$(date +%Y%m%d-%H%M%S)"
-  pb_data 'find /pb/pb_data -mindepth 1 -delete'
+db_reset() {
+  db_confirm "This erases the database, including all accounts."
+  db_backup "before-reset-$(date +%Y%m%d-%H%M%S)"
+  db_pause
+  db_exec 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
 }
 
-pb() {
+db() {
   local action=${1:-}
   [ $# -gt 0 ] && shift
   case $action in
-    admin) pb_admin "$@" ;;
-    backup) pb_backup "$@" ;;
-    restore) pb_restore "$@" ;;
-    reset) pb_reset ;;
-    migrate) pb_exec migrate "$@" ;;
-    version) pb_exec --version ;;
+    shell) db_shell ;;
+    ui) db_ui ;;
+    status) db_status ;;
+    new) db_new "$@" ;;
+    backup) db_backup "$@" ;;
+    restore) db_restore "$@" ;;
+    reset) db_reset ;;
     *)
-      echo "Unknown pb command: ${action:-none}" >&2
+      echo "Unknown db command: ${action:-none}" >&2
       echo >&2
       usage >&2
       exit 1
       ;;
   esac
+}
+
+# Fills in any empty secret. Compose refuses to start without them.
+ensure_env() {
+  [ -f .env ] || cp .env.example .env
+  local key value
+  for key in POSTGRES_PASSWORD JWT_SECRET; do
+    grep -Eq "^$key=.+" .env && continue
+    value=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
+    if grep -q "^$key=" .env; then
+      sed -i "s/^$key=.*/$key=$value/" .env
+    else
+      printf '%s=%s\n' "$key" "$value" >>.env
+    fi
+  done
 }
 
 command=${1:-help}
@@ -214,7 +247,7 @@ case $command in
     usage
     exit 0
     ;;
-  start | stop | restart | down | rebuild | clean-build | status | urls | logs | save-logs | shell | services | pb) ;;
+  start | stop | restart | down | rebuild | clean-build | status | urls | logs | save-logs | shell | services | db) ;;
   *)
     echo "Unknown command: $command" >&2
     echo >&2
@@ -223,6 +256,7 @@ case $command in
     ;;
 esac
 
+ensure_env
 require_docker
 
 case $command in
@@ -238,5 +272,5 @@ case $command in
   save-logs) save_logs "$@" ;;
   shell) open_shell "$@" ;;
   services) list_services ;;
-  pb) pb "$@" ;;
+  db) db "$@" ;;
 esac

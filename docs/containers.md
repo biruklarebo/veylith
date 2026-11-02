@@ -28,14 +28,16 @@ flowchart LR
 
     subgraph compose["compose.yaml"]
         frontend["frontend<br/>nginx, port 8088"]
-        backend["backend<br/>PocketBase, port 8090"]
-        volume[("backend_data")]
+        backend["backend<br/>API, port 8090"]
+        database["database<br/>PostgreSQL, no published port"]
+        volume[("database_data")]
     end
 
     stack -- manages --> compose
     browser --> frontend
     frontend -- "forwards /api" --> backend
-    backend --> volume
+    backend --> database
+    database --> volume
 ```
 
 ## Running
@@ -70,13 +72,13 @@ Use `rebuild` after changing code. `start` and `restart` keep running the existi
 ```mermaid
 flowchart TD
     changed{"What changed?"}
-    changed -- "Frontend code, Dockerfile<br/>or POCKETBASE_VERSION" --> rebuild["rebuild"]
-    changed -- "Migrations or hooks" --> restart["restart backend"]
+    changed -- "App code or Dockerfile" --> rebuild["rebuild"]
+    changed -- "Migrations" --> restart["restart backend"]
     changed -- "Port or other .env setting" --> start["start"]
     rebuild -- "Build fails on stale layers" --> clean["clean-build"]
 ```
 
-None of these touch the data in a volume. Only `./stack.sh pb reset` and `./stack.sh pb restore` do.
+None of these touch the data in a volume. Only `./stack.sh db reset` and `./stack.sh db restore` do.
 
 ## Monitoring
 
@@ -100,30 +102,31 @@ None of these touch the data in a volume. Only `./stack.sh pb reset` and `./stac
 
 With no services given, a command applies to the whole stack.
 
-## Backend
+## Database
 
 | Command | What it does |
 | --- | --- |
-| `./stack.sh pb admin <email>` | Create a dashboard admin, or change its password |
-| `./stack.sh pb backup [name]` | Save the database to `backups/` |
-| `./stack.sh pb restore [file]` | Replace the database with a backup, or list backups |
-| `./stack.sh pb reset` | Erase the database, keeping a backup first |
-| `./stack.sh pb migrate <args>` | Run PocketBase migrations |
-| `./stack.sh pb version` | Show the PocketBase version |
+| `./stack.sh db shell` | Open a SQL prompt |
+| `./stack.sh db ui` | Browse the database in a web page |
+| `./stack.sh db status` | Show applied migrations and table sizes |
+| `./stack.sh db new <name>` | Create a migration file to edit |
+| `./stack.sh db backup [name]` | Save the database to `backups/` |
+| `./stack.sh db restore [file]` | Replace the database with a backup, or list backups |
+| `./stack.sh db reset` | Erase the database, keeping a backup first |
 
-See [Backend](backend.md).
+See [Database](database.md).
 
 ## Adding a container
 
-1. Create a top-level folder for it, such as `backend/`, with its code and a `Dockerfile`.
-2. Add a service to `compose.yaml` with `build: ./backend`.
-3. Run `./stack.sh start backend`.
+1. Create a top-level folder for it, such as `worker/`, with its code and a `Dockerfile`.
+2. Add a service to `compose.yaml` with `build: ./worker`.
+3. Run `./stack.sh start worker`.
 
 ```mermaid
 flowchart LR
-    folder["Create backend/<br/>with a Dockerfile"]
+    folder["Create worker/<br/>with a Dockerfile"]
     service["Add a service<br/>to compose.yaml"]
-    start["./stack.sh start backend"]
+    start["./stack.sh start worker"]
     managed["All stack.sh commands<br/>now work for it"]
 
     folder --> service --> start --> managed
@@ -133,4 +136,4 @@ The script reads services from `compose.yaml`, so it needs no changes. Services 
 
 ## Configuration
 
-Copy `.env.example` to `.env` at the repo root to override defaults. `FRONTEND_PORT` sets the host port for the frontend (default 8088). Backend settings are listed in [Backend](backend.md#changing-the-setup).
+`stack.sh` creates `.env` at the repo root from `.env.example` on first use and generates the secrets. It's ignored by git, so keep it safe: `POSTGRES_PASSWORD` in it must match the database. `FRONTEND_PORT` sets the host port for the frontend (default 8088). Other settings are listed in [Backend](backend.md#changing-the-setup) and [Database](database.md#changing-things-later).

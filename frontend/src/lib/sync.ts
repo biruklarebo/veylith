@@ -1,21 +1,20 @@
 import { useSyncExternalStore } from 'react';
 import { clear, get, set } from 'idb-keyval';
 import { useStore } from '../store';
-import { pb } from './pb';
+import { clearAuth, currentAccount, deleteItem, listItems, onAuthChange, putItem, putPhoto, refreshAccount, type ApiError } from './api';
 import { deletePhotoBlob, loadPhotoBlob } from './photos';
 import { COLLECTIONS, HISTORY, canon, fromItems, merge, toItems, type Collection, type Items, type Synced } from './syncMerge';
 
-// PocketBase holds the data. The store is this device's working copy, so the app keeps working
+// The database holds the data. The store is this device's working copy, so the app keeps working
 // without a connection: changes are pushed shortly after they happen, and the server is read on
 // startup and whenever the app comes back into view or online.
-const META_KEY = 'sync-meta';
+const META_KEY = 'sync-base';
 const RETRY_MS = 30000;
 const PUSH_DELAY_MS = 800;
 
-type Row = { id: string; json: string };
 interface Meta {
   user: string;
-  base: Record<Collection, Record<string, Row>>;
+  base: Record<Collection, Record<string, string>>; // each item as both sides last agreed on it
 }
 
 const emptyBase = () => Object.fromEntries(COLLECTIONS.map((c) => [c, {}])) as Meta['base'];
@@ -49,21 +48,20 @@ export const useSyncWaiting = () =>
   );
 
 async function pull() {
-  const user = pb.authStore.record!.id;
-  const remote = {} as Record<Collection, { id: string; key: string; data: unknown }[]>;
-  for (const c of COLLECTIONS) remote[c] = await pb.collection(c).getFullList({ fields: 'id,key,data', batch: 200 });
+  const user = currentAccount()!.id;
+  const rows = await listItems();
+  const remote = Object.fromEntries(COLLECTIONS.map((c) => [c, {}])) as Record<Collection, Items>;
+  for (const r of rows) if (r.collection in remote) remote[r.collection as Collection][r.key] = r.data;
 
   const first = !meta;
-  const emptyAccount = COLLECTIONS.every((c) => !remote[c].length);
+  const emptyAccount = !rows.length;
   const prior = meta?.base;
   const local = toItems(synced());
   const merged = {} as Record<Collection, Items>;
   const base = emptyBase();
   for (const c of COLLECTIONS) {
-    const items = Object.fromEntries(remote[c].map((r) => [r.key, r.data]));
-    const agreed = prior && Object.fromEntries(Object.entries(prior[c]).map(([k, r]) => [k, r.json]));
-    merged[c] = merge(local[c], items, first ? null : (agreed ?? {}), emptyAccount || HISTORY.includes(c));
-    for (const r of remote[c]) base[c][r.key] = { id: r.id, json: canon(r.data) };
+    merged[c] = merge(local[c], remote[c], first ? null : (prior?.[c] ?? {}), emptyAccount || HISTORY.includes(c));
+    for (const [k, v] of Object.entries(remote[c])) base[c][k] = canon(v);
   }
   meta = { user, base };
   for (const k of Object.keys(local.photos)) if (!(k in merged.photos)) deletePhotoBlob(k);
@@ -72,14 +70,12 @@ async function pull() {
 }
 
 async function save(c: Collection, key: string, data: unknown) {
-  const body: Record<string, unknown> = { user: meta!.user, key, data };
-  const row = meta!.base[c][key];
-  if (c === 'photos' && !row) {
+  if (c === 'photos' && !(key in meta!.base.photos)) {
     const blob = await loadPhotoBlob(key);
-    if (blob) body.image = new File([blob], `${key}.jpg`, { type: 'image/jpeg' });
+    if (blob) await putPhoto(key, blob);
   }
-  const saved = row ? await pb.collection(c).update(row.id, body) : await pb.collection(c).create(body);
-  meta!.base[c][key] = { id: saved.id, json: canon(data) };
+  await putItem(c, key, data);
+  meta!.base[c][key] = canon(data);
 }
 
 // Sends every item that differs from what the server last confirmed. An item the server rejects
@@ -92,7 +88,7 @@ async function push() {
     try {
       await send();
     } catch (e) {
-      const status = (e as { status?: number }).status;
+      const status = (e as ApiError).status;
       if (!status || status === 401) throw e;
       rejected = e;
     }
@@ -100,12 +96,12 @@ async function push() {
   try {
     for (const c of COLLECTIONS) {
       for (const [key, data] of Object.entries(local[c])) {
-        if (canon(data) !== meta.base[c][key]?.json) await attempt(() => save(c, key, data));
+        if (canon(data) !== meta.base[c][key]) await attempt(() => save(c, key, data));
       }
-      for (const [key, row] of Object.entries(meta.base[c])) {
+      for (const key of Object.keys(meta.base[c])) {
         if (key in local[c]) continue;
         await attempt(async () => {
-          await pb.collection(c).delete(row.id);
+          await deleteItem(c, key);
           delete meta!.base[c][key];
         });
       }
@@ -122,7 +118,7 @@ function request(kind: 'push' | 'full') {
 }
 
 async function run() {
-  if (running || !pb.authStore.record) return;
+  if (running || !currentAccount()) return;
   running = true;
   while (wanted) {
     const kind = wanted;
@@ -132,9 +128,8 @@ async function run() {
       await push();
       setWaiting(false);
     } catch (e) {
-      const status = (e as { status?: number }).status;
       // An expired sign-in: pending changes stay on the device for the next sign-in.
-      if (status === 401) pb.authStore.clear();
+      if ((e as ApiError).status === 401) clearAuth();
       else {
         setWaiting(true);
         clearTimeout(retryTimer);
@@ -152,13 +147,13 @@ const onVisible = () => {
 const onOnline = () => request('full');
 
 // A later sign-in, after an expired one, starts sync again.
-pb.authStore.onChange((token) => {
-  if (!token) startedFor = null;
+onAuthChange(() => {
+  if (!currentAccount()) startedFor = null;
 });
 
 // Starts syncing for the signed-in user, once. The promise settles when the app can show.
 export function startSync() {
-  const user = pb.authStore.record?.id;
+  const user = currentAccount()?.id;
   if (!user) return Promise.resolve();
   if (startedFor !== user) {
     startedFor = user;
@@ -182,7 +177,7 @@ async function begin(user: string) {
   });
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('online', onOnline);
-  pb.collection('users').authRefresh().catch((e) => e.status === 401 && pb.authStore.clear());
+  void refreshAccount();
   request('full');
   if (!meta) await new Promise<void>((res) => {
     const check = () => (meta || !running ? res() : setTimeout(check, 50));
@@ -195,7 +190,7 @@ const hasPending = () => {
   const local = toItems(synced());
   return COLLECTIONS.some((c) => {
     const keys = new Set([...Object.keys(local[c]), ...Object.keys(meta!.base[c])]);
-    return [...keys].some((k) => (k in local[c] ? canon(local[c][k]) : undefined) !== meta!.base[c][k]?.json);
+    return [...keys].some((k) => (k in local[c] ? canon(local[c][k]) : undefined) !== meta!.base[c][k]);
   });
 };
 
@@ -213,6 +208,6 @@ export async function signOut() {
   }
   if (hasPending() && !confirm('Some changes have not reached the server yet and will be lost. Sign out anyway?')) return;
   await clearDevice();
-  pb.authStore.clear();
+  clearAuth();
   location.reload();
 }

@@ -4,7 +4,7 @@ import { findExercise, useStore } from '../store';
 import { dayKey, estDaySeconds, fmtEst, fmtHMS, muscleHeat, weekStreak } from '../lib/calc';
 import { plannedOn, todayPlan } from '../lib/plans';
 import { useNow } from '../lib/alarm';
-import { useAccount } from '../lib/pb';
+import { useAccount } from '../lib/api';
 import { useSyncWaiting } from '../lib/sync';
 import { ProfileButton } from '../components/Avatar';
 import { BodyMap } from '../components/BodyMap';
