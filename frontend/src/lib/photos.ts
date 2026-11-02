@@ -9,6 +9,16 @@ export const savePhotoBlob = (id: string, b: Blob) => set(key(id), b);
 export const loadPhotoBlob = (id: string) => get<Blob>(key(id));
 export const deletePhotoBlob = (id: string) => del(key(id));
 
+// Backups are JSON, so photos travel as data URLs.
+export const blobToDataUrl = (b: Blob) =>
+  new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as string);
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(b);
+  });
+export const dataUrlToBlob = async (url: string) => (await fetch(url)).blob();
+
 // Re-encode to a JPEG no larger than `max` px on the long side. Drawing through a canvas also
 // drops EXIF data, so location and camera details never get stored.
 export async function shrinkImage(file: File, max = 1440): Promise<{ blob: Blob; w: number; h: number }> {

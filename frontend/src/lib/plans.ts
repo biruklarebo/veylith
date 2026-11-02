@@ -132,7 +132,7 @@ export function applyPhase(day: WorkoutDay, p: { phase: Phase; week: number }): 
     ...day,
     items: day.items.map((it) => {
       let s = it.sets;
-      if (p.phase === 'Accumulation' && p.week >= 3) s = [...s, s[s.length - 1]];
+      if (p.phase === 'Accumulation' && p.week >= 3 && s.length) s = [...s, s[s.length - 1]];
       if (p.phase === 'Intensification') s = s.map((x) => ({ ...x, reps: Math.max(3, x.reps - 2), rest: x.rest + 30 }));
       if (p.phase === 'Deload') s = s.slice(0, Math.max(1, Math.ceil(s.length / 2)));
       return { ...it, sets: s };

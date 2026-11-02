@@ -15,14 +15,20 @@ export function useDragReorder(count: number, onMove: (from: number, to: number)
     const y0 = e.clientY;
     setDrag({ i, dy: 0, h });
     const move = (ev: globalThis.PointerEvent) => setDrag((d) => d && { ...d, dy: ev.clientY - y0 });
-    const up = (ev: globalThis.PointerEvent) => {
+    const end = () => {
       window.removeEventListener('pointermove', move);
-      const to = target({ i, dy: ev.clientY - y0, h });
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', end);
       setDrag(null);
+    };
+    const up = (ev: globalThis.PointerEvent) => {
+      const to = target({ i, dy: ev.clientY - y0, h });
+      end();
       if (to !== i) onMove(i, to);
     };
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up, { once: true });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', end);
   };
 
   const style = (j: number): CSSProperties | undefined => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNav } from '../nav';
 import { useStore } from '../store';
-import { dayKey, fromDisplay, toDisplay, uid } from '../lib/calc';
+import { dayKey, fromDisplay, parseNum, toDisplay, uid } from '../lib/calc';
 import { LineChart } from './LineChart';
 import { Sheet } from './Sheet';
 
@@ -69,7 +69,7 @@ export function BodyWeightCard() {
           {points.length > 1 && <LineChart points={points} area goal={goal} format={(v) => `${round1(v)}`} label={`Body weight in ${u} over time`} />}
           {trend && (
             <p className="bw-trend">
-              <span aria-hidden>↗</span> Trend {trend.perWeek > 0 ? '+' : '−'}
+              <span aria-hidden>{trend.perWeek > 0 ? '↗' : '↘'}</span> Trend {trend.perWeek > 0 ? '+' : '−'}
               {round1(Math.abs(trend.perWeek))} {u} a week ({trend.perWeek > 0 ? '+' : '−'}
               {Math.abs(Math.round(trend.pct * 100) / 100)}%)
             </p>
@@ -127,7 +127,7 @@ function NumberSheet({ open, title, unit, initial, removable, onClose, onSave }:
             Remove
           </button>
         )}
-        <button className="btn primary grow big" disabled={!(parseFloat(text) > 0)} onClick={() => onSave(parseFloat(text))}>
+        <button className="btn primary grow big" disabled={!(parseNum(text) > 0)} onClick={() => onSave(parseNum(text))}>
           Save
         </button>
       </div>

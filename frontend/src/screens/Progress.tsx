@@ -3,6 +3,7 @@ import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
 import { dayKey, fmtDuration, fmtWeight, sessionSetCount, sessionVolume, weekStreak } from '../lib/calc';
 import { BodyWeightCard } from '../components/BodyWeightCard';
+import { DaySheet } from '../components/DaySheet';
 import { Thumb } from './Photos';
 import { BodyMap } from '../components/BodyMap';
 import { daysSince, fatigue, hoursToReady, volume } from '../lib/recovery';
@@ -199,9 +200,8 @@ function MusclesCard() {
 
 // Last 12 months, one cell per day, shaded by sets logged that day.
 function Heatmap({ sessions }: { sessions: Session[] }) {
-  const nav = useNav();
   const scroller = useRef<HTMLDivElement>(null);
-  const [pick, setPick] = useState<string | null>(null);
+  const [pick, setPick] = useState<Date | null>(null);
   const byDay = useMemo(() => {
     const m = new Map<string, Session[]>();
     for (const s of sessions) m.set(dayKey(s.start), [...(m.get(dayKey(s.start)) ?? []), s]);
@@ -227,7 +227,6 @@ function Heatmap({ sessions }: { sessions: Session[] }) {
       return date;
     }),
   );
-  const picked = pick ? byDay.get(pick) : undefined;
   const activeDays = [...byDay.keys()].filter((k) => k >= dayKey(start)).length;
 
   return (
@@ -251,8 +250,8 @@ function Heatmap({ sessions }: { sessions: Session[] }) {
                 return (
                   <button
                     key={k}
-                    className={`heat-cell l${level(byDay.get(k))} ${k === todayKey ? 'today' : ''} ${pick === k ? 'picked' : ''}`}
-                    onClick={() => (pick === k && picked ? nav.push({ kind: 'history', id: picked[0].id }) : setPick(k))}
+                    className={`heat-cell l${level(byDay.get(k))} ${k === todayKey ? 'today' : ''} ${pick && dayKey(pick) === k ? 'picked' : ''}`}
+                    onClick={() => setPick(date)}
                     aria-label={`${date.toLocaleDateString()}: ${byDay.get(k)?.length ?? 0} workouts`}
                   />
                 );
@@ -262,17 +261,12 @@ function Heatmap({ sessions }: { sessions: Session[] }) {
         </div>
       </div>
       <div className="heat-foot">
-        <span className="muted small grow">
-          {pick
-            ? `${new Date(pick + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${
-                picked ? `${picked.map((s) => s.name).join(', ')} · ${picked.reduce((n, s) => n + sessionSetCount(s), 0)} sets (tap again to open)` : 'Rest'
-              }`
-            : 'Tap a day for details'}
-        </span>
+        <span className="muted small grow">Tap a day for details</span>
         <span className="heat-legend" aria-hidden>
           Less <i className="heat-cell l0" /> <i className="heat-cell l1" /> <i className="heat-cell l2" /> <i className="heat-cell l3" /> <i className="heat-cell l4" /> More
         </span>
       </div>
+      <DaySheet date={pick} onClose={() => setPick(null)} />
     </section>
   );
 }

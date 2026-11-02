@@ -2,7 +2,7 @@
 
 Every container is defined in `compose.yaml` at the repo root and managed with `stack.sh`. Docker must be running.
 
-On Windows, run it from Git Bash or WSL. From PowerShell, use `bash ./stack.sh <command>`.
+On Windows, run it from Git Bash with Docker Desktop running. Avoid `bash ./stack.sh` in PowerShell: that `bash` is WSL, which can reach a separate Docker engine and start a second copy of a service on the same port.
 
 ## Running
 

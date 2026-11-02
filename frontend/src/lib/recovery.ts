@@ -1,3 +1,4 @@
+import { daysAgo } from './calc';
 import type { Exercise, Session } from '../types';
 
 // Muscle fatigue measured in hard sets rather than tonnage: growth stimulus tracks sets taken
@@ -53,7 +54,7 @@ export function daysSince(sessions: Session[], find: Find, now = Date.now()): (n
   for (const s of sessions) {
     for (const l of s.logs) {
       const p = find(l.exerciseId)?.bodyPart;
-      if (p !== undefined && out[p] === null && l.sets.some((x) => x.done)) out[p] = Math.floor((now - s.start) / 864e5);
+      if (p !== undefined && out[p] === null && l.sets.some((x) => x.done)) out[p] = daysAgo(s.start, now);
     }
   }
   return out;

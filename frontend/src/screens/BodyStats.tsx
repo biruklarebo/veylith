@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { dayKey, fromDisplay, toDisplay, uid } from '../lib/calc';
+import { dayKey, fromDisplay, parseNum, toDisplay, uid } from '../lib/calc';
 import { Header } from '../components/ui';
 import { LineChart } from '../components/LineChart';
 import { BODY_FIELDS, type BodyField } from '../types';
@@ -30,16 +30,18 @@ export function BodyStats() {
     for (const f of BODY_FIELDS) {
       const raw = draft[f];
       if (raw === undefined) continue;
-      if (raw === '') delete values[f];
-      else values[f] = f === 'weight' ? fromDisplay(+raw, settings) : +raw;
+      const v = parseNum(raw);
+      if (raw.trim() === '') delete values[f];
+      else if (!Number.isNaN(v)) values[f] = f === 'weight' ? fromDisplay(v, settings) : v;
     }
-    saveBodyStat({ id: existing?.id ?? uid(), date, values });
+    if (Object.keys(values).length) saveBodyStat({ id: existing?.id ?? uid(), date, values });
+    else if (existing) deleteBodyStat(existing.id);
     setDraft({});
   };
 
   const points = bodyStats
     .filter((b) => b.values[field] != null)
-    .map((b) => ({ t: new Date(b.date).getTime(), v: field === 'weight' ? toDisplay(b.values.weight!, settings) : b.values[field]! }));
+    .map((b) => ({ t: new Date(`${b.date}T12:00`).getTime(), v: field === 'weight' ? toDisplay(b.values.weight!, settings) : b.values[field]! }));
 
   return (
     <div className="page">
@@ -47,7 +49,7 @@ export function BodyStats() {
       <section className="card">
         <label className="row gap">
           <span className="grow">Date</span>
-          <input type="date" value={date} onChange={(e) => { setDate(e.target.value); setDraft({}); }} />
+          <input type="date" value={date} max={dayKey(Date.now())} onChange={(e) => { setDate(e.target.value); setDraft({}); }} />
         </label>
         <div className="grid2">
           {BODY_FIELDS.map((f) => (

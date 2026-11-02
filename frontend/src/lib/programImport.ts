@@ -209,7 +209,9 @@ const restSeconds = (s?: string) => {
   if (!s) return 90;
   const m = s.match(/(\d+(?:\.\d+)?)/);
   if (!m) return 90;
-  return Math.round(+m[1] * (/s(ec)?\b/i.test(s) && !/min/i.test(s) ? 1 : 60));
+  // No unit: "2" means minutes, "90" means seconds.
+  const seconds = (/s(ec)?\b/i.test(s) && !/min/i.test(s)) || (!/[a-z]/i.test(s) && +m[1] >= 10);
+  return Math.round(+m[1] * (seconds ? 1 : 60));
 };
 
 export const blockFor = (p: CuratedProgram, week: number) =>

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { useNav } from '../nav';
 import { useExercise, useExercises, useStore } from '../store';
 import { ExerciseArt, hasArt } from '../components/ExerciseArt';
-import { fmtWeight, fromDisplay, logBest1RM, toDisplay, weightForReps } from '../lib/calc';
-import { Empty, Header, PartBadge } from '../components/ui';
+import { fmtWeight, fromDisplay, logBest1RM, oneRepMax, parseNum, toDisplay, weightForReps } from '../lib/calc';
+import { Empty, Header, NumField, PartBadge } from '../components/ui';
 import { LineChart } from '../components/LineChart';
 import { BODY_PARTS, EQUIPMENT, type Equipment, type RecordType } from '../types';
 
@@ -80,6 +80,7 @@ export function ExerciseLibrary({ picker, initialPart = null }: { picker?: { tit
 
       {creating && (
         <CustomExerciseForm
+          initialName={q.trim()}
           onCancel={() => setCreating(false)}
           onSave={(e) => {
             const ex = addCustomExercise(e);
@@ -124,13 +125,15 @@ export function ExerciseLibrary({ picker, initialPart = null }: { picker?: { tit
 }
 
 function CustomExerciseForm({
+  initialName,
   onSave,
   onCancel,
 }: {
+  initialName: string;
   onSave: (e: { name: string; bodyPart: number; equipment: Equipment; recordType: RecordType; secondary: number[] }) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [bodyPart, setBodyPart] = useState(3);
   const [equipment, setEquipment] = useState<Equipment>('Barbell');
   const [recordType, setRecordType] = useState<RecordType>('weight');
@@ -197,7 +200,7 @@ export function ExerciseDetail({ id }: { id: string }) {
 
   if (!ex) return <Header title="Exercise not found" />;
   const oneRm = rec?.best1RM ?? 0;
-  const calc1Rm = +calcW > 0 && +calcR > 0 ? (+calcR === 1 ? +calcW : +calcW * (1 + +calcR / 30)) : 0;
+  const calc1Rm = oneRepMax(parseNum(calcW) || 0, parseNum(calcR) || 0);
 
   return (
     <div className="page">
@@ -231,12 +234,13 @@ export function ExerciseDetail({ id }: { id: string }) {
               <span>sessions</span>
             </div>
             <label>
-              <input
+              <NumField
                 className="target"
-                inputMode="decimal"
+                decimal
+                label="Target 1RM"
                 placeholder="—"
-                value={rec?.target1RM ? toDisplay(rec.target1RM, settings) : ''}
-                onChange={(e) => setTarget1RM(id, e.target.value ? fromDisplay(+e.target.value, settings) : undefined)}
+                value={rec?.target1RM ? toDisplay(rec.target1RM, settings) : null}
+                onChange={(v) => setTarget1RM(id, v ? fromDisplay(v, settings) : undefined)}
               />
               <span>target 1RM</span>
             </label>
@@ -285,8 +289,8 @@ export function ExerciseDetail({ id }: { id: string }) {
       {history.length === 0 ? (
         <Empty title="Not logged yet" />
       ) : (
-        [...history].reverse().map(({ s, l }) => (
-          <section key={s.id} className="card">
+        [...history].reverse().map(({ s, l }, i) => (
+          <section key={`${s.id}-${i}`} className="card">
             <p className="muted small">{new Date(s.start).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</p>
             <p>
               {l.sets

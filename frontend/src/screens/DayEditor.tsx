@@ -1,7 +1,7 @@
 import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
 import { fromDisplay, toDisplay, uid } from '../lib/calc';
-import { Empty, Header, PartBadge } from '../components/ui';
+import { Empty, Header, NumField, PartBadge } from '../components/ui';
 import type { DayItem, PlanSet, SetType, WorkoutDay } from '../types';
 
 export const SET_TYPES: { id: SetType; short: string; label: string }[] = [
@@ -145,13 +145,12 @@ export function DayEditor({ routineId, dayId }: { routineId: string; dayId: stri
                       </select>
                     </td>
                     <td>
-                      <input
-                        inputMode="decimal"
+                      <NumField
+                        decimal
+                        label={`Set ${j + 1} weight`}
                         placeholder="auto"
-                        value={s.weightLbs == null ? '' : toDisplay(s.weightLbs, settings)}
-                        onChange={(e) =>
-                          patchSet(it.id, j, { weightLbs: e.target.value === '' ? null : fromDisplay(+e.target.value || 0, settings) })
-                        }
+                        value={s.weightLbs === null ? null : toDisplay(s.weightLbs, settings)}
+                        onChange={(v) => patchSet(it.id, j, { weightLbs: v === null ? null : fromDisplay(v, settings) })}
                       />
                     </td>
                     <td>
@@ -164,6 +163,7 @@ export function DayEditor({ routineId, dayId }: { routineId: string; dayId: stri
                       <button
                         className="icon-btn small"
                         aria-label="Remove set"
+                        disabled={it.sets.length === 1}
                         onClick={() => patchItem(it.id, (i) => ({ ...i, sets: i.sets.filter((_, k) => k !== j) }))}
                       >
                         −

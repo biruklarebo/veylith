@@ -292,7 +292,27 @@ export const useStore = create<State>()(
         return { session, prs, number: sessions.length + (logs.length ? 1 : 0) };
       },
       discardSession: () => setState({ activeSession: null }),
-      deleteSession: (id) => setState((s) => ({ sessions: s.sessions.filter((x) => x.id !== id) })),
+      deleteSession: (id) =>
+        setState((s) => {
+          const gone = s.sessions.find((x) => x.id === id);
+          const sessions = s.sessions.filter((x) => x.id !== id);
+          // A record set in the deleted workout goes with it: fall back to the best one left.
+          const records = { ...s.records };
+          for (const l of gone?.logs ?? []) {
+            let best = 0;
+            let bestAt = 0;
+            for (const x of sessions)
+              for (const y of x.logs) {
+                const v = y.exerciseId === l.exerciseId ? logBest1RM(y) : 0;
+                if (v > best) {
+                  best = v;
+                  bestAt = x.end ?? x.start;
+                }
+              }
+            records[l.exerciseId] = { ...records[l.exerciseId], best1RM: best, bestAt };
+          }
+          return { sessions, records };
+        }),
 
       setTarget1RM: (exerciseId, target) =>
         setState((s) => ({

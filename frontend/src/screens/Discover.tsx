@@ -7,6 +7,7 @@ import { useNow } from '../lib/alarm';
 import { BodyMap } from '../components/BodyMap';
 import { weeklyCheckIn, type CheckAction } from '../lib/checkin';
 import { BodyWeightCard } from '../components/BodyWeightCard';
+import { DaySheet } from '../components/DaySheet';
 import { Sheet } from '../components/Sheet';
 import { useStartDay } from './Workouts';
 import type { Exercise, WorkoutDay } from '../types';
@@ -50,6 +51,7 @@ function TodayCard() {
   const now = useNow(activeSession ? 1000 : 60000);
   const [weekOff, setWeekOff] = useState(0);
   const [choose, setChoose] = useState(false);
+  const [picked, setPicked] = useState<Date | null>(null);
   const routine = routines.find((r) => r.id === activeRoutineId);
   const plan = todayPlan(routine, sessions);
   const streak = weekStreak(sessions);
@@ -57,8 +59,7 @@ function TodayCard() {
   const monday = new Date(now);
   monday.setHours(0, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + weekOff * 7);
-  const done = new Map<string, string>();
-  for (const s of sessions) if (!done.has(dayKey(s.start))) done.set(dayKey(s.start), s.id);
+  const done = new Set(sessions.map((s) => dayKey(s.start)));
   const pinned = new Set(routine?.days.filter((d) => d.weekday !== undefined).map((d) => d.weekday!));
   const todayKey = dayKey(now);
   const label = weekOff === 0 ? 'This week' : weekOff === -1 ? 'Last week' : weekOff === 1 ? 'Next week' : monday.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -81,10 +82,10 @@ function TodayCard() {
           const d = new Date(monday);
           d.setDate(monday.getDate() + i);
           const k = dayKey(d);
-          const sid = done.get(k);
-          const cls = [k === todayKey ? 'today' : '', sid ? 'done' : '', !sid && pinned.has(i) && k >= todayKey ? 'planned' : ''].join(' ');
+          const logged = done.has(k);
+          const cls = [k === todayKey ? 'today' : '', logged ? 'done' : '', !logged && pinned.has(i) && k >= todayKey ? 'planned' : ''].join(' ');
           return (
-            <button key={i} className={`ws-day ${cls}`} style={{ animationDelay: `${i * 30}ms` }} disabled={!sid} onClick={() => sid && nav.push({ kind: 'history', id: sid })} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (sid ? ', workout logged' : '')}>
+            <button key={i} className={`ws-day ${cls}`} style={{ animationDelay: `${i * 30}ms` }} onClick={() => setPicked(d)} aria-label={d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + (logged ? ', workout logged' : '')}>
               <span>{d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2).toUpperCase()}</span>
               <b>{d.getDate()}</b>
               <i />
@@ -188,6 +189,7 @@ function TodayCard() {
           Quickstart a custom workout
         </button>
       </Sheet>
+      <DaySheet date={picked} onClose={() => setPicked(null)} />
       {confirm}
     </section>
   );
@@ -206,16 +208,19 @@ function CheckInCard() {
   const end = new Date(c.from + 6 * 864e5);
   const range = `${new Date(c.from).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
 
+  const openProgram = () => {
+    useUI.getState().set({ workoutTab: 'planned', planTab: 'overview', dayId: null });
+    nav.reset('workout');
+  };
   const act = (to: CheckAction) => {
     if (to.kind === 'exercise') nav.push({ kind: 'exercise', id: to.id });
     if (to.kind === 'progress') nav.reset('progress');
-    if (to.kind === 'program') {
-      useUI.getState().set({ workoutTab: 'planned', planTab: 'overview', dayId: null });
-      nav.reset('workout');
-    }
+    if (to.kind === 'program') openProgram();
     if (to.kind === 'start') {
+      // A rest day has nothing to start: open the program so another day can be picked.
       const day = todayPlan(routine, sessions).day;
       if (routine && day) start(routine.id, day.id);
+      else openProgram();
     }
   };
 
