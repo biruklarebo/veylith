@@ -15,3 +15,34 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        POCKETBASE_VERSION: ${POCKETBASE_VERSION:-0.40.6}
+    command:
+      - serve
+      - --http=0.0.0.0:8090
+      - --origins=${BACKEND_ORIGINS:-http://localhost:8088,http://localhost:5173}
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    ports:
+      - "${BACKEND_HOST:-127.0.0.1}:${BACKEND_PORT:-8090}:8090"
+    volumes:
+      # The database and uploaded files. Survives rebuilds and `down`.
+      - backend_data:/pb/pb_data
+      # Live from the repo, so changes made in the dashboard land in git.
+      - ./backend/pb_migrations:/pb/pb_migrations
+      - ./backend/pb_hooks:/pb/pb_hooks
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  backend_data:

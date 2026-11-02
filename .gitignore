@@ -1,3 +1,6 @@
+# Backend backups hold real user data
+backups
+
 # Logs
 logs
 *.log

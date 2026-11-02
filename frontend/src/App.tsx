@@ -3,7 +3,10 @@ import { NavContext, useUI, type Nav, type Screen, type Tab } from './nav';
 import { findExercise, useStore } from './store';
 import { fmtHMS } from './lib/calc';
 import { beep, flashScreen, useWakeLock } from './lib/alarm';
+import { useAccount } from './lib/pb';
+import { startSync } from './lib/sync';
 import { Discover } from './screens/Discover';
+import { Login } from './screens/Login';
 import { Workouts } from './screens/Workouts';
 import { RoutineDetail } from './screens/RoutineDetail';
 import { DayEditor } from './screens/DayEditor';
@@ -65,6 +68,8 @@ function renderScreen(s: Screen) {
 
 export default function App() {
   const [hydrated, setHydrated] = useState(useStore.persist.hasHydrated());
+  const userId = useAccount()?.id;
+  const [syncedFor, setSyncedFor] = useState<string>();
   const { tab, set: setUI } = useUI();
   const [stack, setStack] = useState<Screen[]>([]);
   const activeSession = useStore((s) => s.activeSession);
@@ -78,6 +83,9 @@ export default function App() {
       unsub();
     };
   }, []);
+  useEffect(() => {
+    if (hydrated && userId) startSync().then(() => setSyncedFor(userId));
+  }, [hydrated, userId]);
   useEffect(() => {
     if (!activeSession) return;
     const t = setInterval(() => tick((n) => n + 1), 1000);
@@ -119,6 +127,8 @@ export default function App() {
   );
 
   if (!hydrated) return <div className="splash">Veylith</div>;
+  if (!userId) return <Login />;
+  if (syncedFor !== userId) return <div className="splash">Veylith</div>;
 
   const top = stack.at(-1);
   const full = top && FULL.has(top.kind);

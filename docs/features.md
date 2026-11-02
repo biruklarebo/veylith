@@ -4,6 +4,26 @@
 
 Three tabs: **Home · Workout · Progress**.
 
+```mermaid
+flowchart LR
+    home["Home<br/>calendar, Today card"]
+    workout["Workout<br/>program, discover, instant"]
+    logger["Logger"]
+    complete["Workout Complete"]
+    celebrate["Celebration"]
+    progress["Progress<br/>stats, history"]
+
+    home -- Start --> logger
+    workout -- Start --> logger
+    logger -- "End Workout" --> complete
+    complete -- Resume --> logger
+    complete -- "Save Workout" --> celebrate
+    complete -- Discard --> workout
+    celebrate --> workout
+    home -- "Tap a day" --> day["Day sheet"]
+    progress -- "Tap a day" --> day
+```
+
 - **Home**: a week or month calendar that moves through any past or future date (done days dotted, planned days ringed; tap a day to see what was logged or planned, and from today on to plan a program day for that date), a *Today* card that starts the day planned for today or the next plan day (weekday-pinned days follow the calendar, otherwise the plan rotates) or resumes a running workout, streak chip, exercise search and train-by-muscle.
 
 - **Workout → Program**: plan banner (`•••` menu, *All Plans*), *Overview* of day cards (drag handle to reorder, muscle thumbnail, weekday badge, `Est. 1h 5m, 6 exercises`, last done / *In progress*), *Add a day*. *Day Details* lists each exercise as `3 × 8,10,12 reps`, with a muscles-worked sheet and *Start Workout*.
@@ -24,4 +44,20 @@ Body maps are SVG; theme is navy with an orange accent.
 
 ## Data
 
-Everything is stored on the device (IndexedDB). Settings → Data exports/imports a JSON backup of everything, including progress photos.
+Sign in with Google, or with an email and password. Each account has a name and profile picture, editable in Settings. Data is stored in your account on the [backend](backend.md), and each device keeps a copy so the app works without a connection and catches up afterwards. Data already on a device uploads on first sign-in. Settings → Data exports/imports a JSON backup of everything, including progress photos.
+
+```mermaid
+erDiagram
+    ROUTINE ||--o{ WORKOUT_DAY : has
+    WORKOUT_DAY ||--o{ DAY_ITEM : lists
+    DAY_ITEM ||--o{ PLAN_SET : plans
+    SCHEDULED_DAY }o--|| WORKOUT_DAY : "plans for a date"
+    SESSION }o--o| WORKOUT_DAY : "started from"
+    SESSION ||--o{ EXERCISE_LOG : records
+    EXERCISE_LOG ||--o{ LOGGED_SET : holds
+    EXERCISE ||--o{ DAY_ITEM : "used in"
+    EXERCISE ||--o{ EXERCISE_LOG : "logged as"
+    EXERCISE ||--o| EXERCISE_RECORD : "best 1RM"
+```
+
+Weights are stored in pounds and converted for display. Body stats and progress photos stand alone, keyed by date.

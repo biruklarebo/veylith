@@ -1,9 +1,80 @@
+import { useState } from 'react';
 import { useStore } from '../store';
+import { Avatar } from '../components/Avatar';
 import { Header, NumField } from '../components/ui';
 import { DEFAULT_BAR, DEFAULT_PLATES, barOf, platesOf } from '../lib/plates';
-import { blobToDataUrl, dataUrlToBlob, deletePhotoBlob, loadPhotoBlob, savePhotoBlob } from '../lib/photos';
+import { blobToDataUrl, dataUrlToBlob, deletePhotoBlob, loadPhotoBlob, savePhotoBlob, shrinkImage } from '../lib/photos';
 import { dayKey } from '../lib/calc';
+import { pb, useAccount } from '../lib/pb';
+import { signOut } from '../lib/sync';
 import type { EffortScale, Routine } from '../types';
+
+const AVATAR_PX = 512;
+
+function ProfileCard() {
+  const user = useAccount();
+  const [name, setName] = useState<string>(user?.name ?? '');
+  if (!user) return null;
+
+  const update = (body: Record<string, unknown>) =>
+    pb.collection('users').update(user.id, body).catch(() => alert('Could not save that. Check your connection and try again.'));
+
+  const changePicture = async (file: File) => {
+    try {
+      const { blob } = await shrinkImage(file, AVATAR_PX);
+      await update({ avatar: new File([blob], 'avatar.jpg', { type: 'image/jpeg' }) });
+    } catch {
+      alert('That file could not be read as a picture.');
+    }
+  };
+
+  return (
+    <section className="card">
+      <h3>Profile</h3>
+      <div className="profile-row">
+        <Avatar user={user} />
+        <div className="grow">
+          <input
+            className="field"
+            aria-label="Name"
+            placeholder="Your name"
+            maxLength={255}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              if (name.trim() !== user.name) update({ name: name.trim() });
+            }}
+          />
+          <p className="muted small">Signed in as {user.email}</p>
+        </div>
+      </div>
+      <div className="row gap">
+        <label className="btn grow">
+          {user.avatar ? 'Change picture' : 'Add picture'}
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            aria-label="Profile picture"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) changePicture(f);
+            }}
+          />
+        </label>
+        {user.avatar && (
+          <button className="btn grow" onClick={() => update({ avatar: null })}>
+            Remove picture
+          </button>
+        )}
+      </div>
+      <button className="btn" onClick={signOut}>
+        Sign out
+      </button>
+    </section>
+  );
+}
 
 export function SettingsScreen() {
   const { settings, updateSettings, sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, photos, schedule } = useStore();
@@ -56,6 +127,7 @@ export function SettingsScreen() {
   return (
     <div className="page">
       <Header title="Settings" />
+      <ProfileCard />
       <section className="card">
         <label className="row gap">
           <span className="grow">Units</span>
@@ -131,7 +203,7 @@ export function SettingsScreen() {
       </section>
       <section className="card">
         <h3>Data</h3>
-        <p className="muted small">Everything is stored on this device only (IndexedDB).</p>
+        <p className="muted small">Your data is stored in your account. This device keeps a copy, so the app works without a connection and catches up afterwards.</p>
         <div className="row gap">
           <button className="btn grow" onClick={exportData}>
             Export JSON

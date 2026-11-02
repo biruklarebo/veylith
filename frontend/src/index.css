@@ -693,6 +693,14 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .ws-day.done i { background: var(--accent); }
 .ws-day.planned i { border: 1.5px solid var(--accent); }
 .ws-day.today b { background: var(--accent); color: var(--accent-ink); }
+.login { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; gap: 12px; max-width: 420px; margin: 0 auto; padding: 0 20px; }
+.login-form { display: flex; flex-direction: column; gap: 10px; }
+.login-error { color: var(--danger); font-size: 14px; margin: 0; }
+.google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.login-or { text-align: center; margin: 0; }
+.profile-row { display: flex; align-items: center; gap: 14px; }
+.profile-row .muted { margin: 6px 0 0; overflow-wrap: anywhere; }
+.avatar { width: 64px; height: 64px; flex: none; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-size: 26px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
 .week-strip.month { gap: 2px; }
 .week-strip.month .ws-day { min-height: 46px; padding: 2px 0; gap: 2px; }
 .week-strip.month .ws-day b { font-size: 15px; width: 30px; height: 30px; }
