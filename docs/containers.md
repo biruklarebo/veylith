@@ -47,6 +47,17 @@ flowchart LR
 | `./stack.sh restart [services]` | Restart without rebuilding |
 | `./stack.sh down [services]` | Stop and remove containers (volumes are kept) |
 
+```mermaid
+stateDiagram-v2
+    [*] --> Running: start
+    Running --> Running: restart
+    Running --> Stopped: stop
+    Stopped --> Running: start
+    Running --> Removed: down
+    Stopped --> Removed: down
+    Removed --> Running: start
+```
+
 ## Building
 
 | Command | What it does |
@@ -107,6 +118,16 @@ See [Backend](backend.md).
 1. Create a top-level folder for it, such as `backend/`, with its code and a `Dockerfile`.
 2. Add a service to `compose.yaml` with `build: ./backend`.
 3. Run `./stack.sh start backend`.
+
+```mermaid
+flowchart LR
+    folder["Create backend/<br/>with a Dockerfile"]
+    service["Add a service<br/>to compose.yaml"]
+    start["./stack.sh start backend"]
+    managed["All stack.sh commands<br/>now work for it"]
+
+    folder --> service --> start --> managed
+```
 
 The script reads services from `compose.yaml`, so it needs no changes. Services reach each other by service name.
 

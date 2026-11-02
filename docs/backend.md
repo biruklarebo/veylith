@@ -29,7 +29,9 @@ flowchart LR
     end
 
     backups["backups/<br/>not in git"]
+    env[".env<br/>settings and secrets, not in git"]
 
+    env -- "read at start" --> container
     dockerfile -- builds --> container
     migrations <-- mounted --> container
     hooks -- mounted --> container
@@ -64,6 +66,20 @@ Each collection has one row per item, and each row belongs to one user. `key` is
 | `exercise_records` | Best lifts and targets |
 | `user_state` | Settings, active program, workout in progress |
 
+```mermaid
+flowchart LR
+    users(["users<br/>email, name, avatar"])
+    rows["sessions<br/>routines<br/>exercises<br/>programs<br/>body_stats<br/>scheduled_days<br/>exercise_records<br/>user_state"]
+    photos["photos"]
+    fields["user, key, data"]
+    image["user, key, data, image"]
+
+    users -- "owns many" --> rows
+    users -- "owns many" --> photos
+    rows -- "each row has" --> fields
+    photos -- "each row has" --> image
+```
+
 ## How the app syncs
 
 PocketBase is the source of truth. Each signed-in device keeps a working copy in IndexedDB, so a workout carries on without signal.
@@ -81,8 +97,31 @@ sequenceDiagram
     Note over App,API: Item changed on both sides: this device's version wins
 ```
 
-- **First sign-in on a device:** an empty account takes everything on the device. An account that already has data keeps it, and only workouts, body stats and photos from the device are added.
-- **Conflicts:** the rule applies per item, so two devices editing different workouts never clash. If both edit the same one, the device that syncs last wins.
+Each sync compares every item with the version both sides last agreed on:
+
+```mermaid
+flowchart TD
+    item["Each item"] --> changed{"Changed on this device<br/>since the last sync?"}
+    changed -- Yes --> local["Keep this device's version,<br/>including a deletion"]
+    local --> push["Send it to the server"]
+    changed -- No --> server["Take the server's version,<br/>including a deletion"]
+```
+
+The rule applies per item, so two devices editing different workouts never clash. If both edit the same one, the device that syncs last wins.
+
+The first sign-in on a device has nothing to compare against, so it follows different rules:
+
+```mermaid
+flowchart TD
+    signin["First sign-in on a device"] --> other{"Device copy from<br/>another account?"}
+    other -- Yes --> wipe["Erase it and start again"]
+    wipe --> signin
+    other -- No --> empty{"Account has<br/>any data?"}
+    empty -- No --> upload["Upload everything<br/>on the device"]
+    empty -- Yes --> merge["Use the account's data"]
+    merge --> history["Add workouts, body stats and<br/>photos only this device has"]
+```
+
 - **Signing out:** the device's copy is removed once everything has reached the server. If something hasn't, the app asks first.
 - **Expired sign-in:** the device keeps its copy and any waiting changes for the next sign-in.
 
@@ -123,7 +162,20 @@ sequenceDiagram
     Note over App,API: The app starts syncing as usual
 ```
 
-New accounts take their name and picture from Google. An email already in use joins that account when Google has confirmed the address, and any password set on an unverified account stops working, so nobody can claim an address in advance. An unconfirmed Google address is refused.
+New accounts take their name and picture from Google. An email already in use joins that account when Google has confirmed the address, and any password set on an unverified account stops working, so nobody can claim an address in advance. An unconfirmed Google address can't take over an existing account.
+
+```mermaid
+flowchart TD
+    google["Google sign-in"] --> known{"Signed in with this<br/>Google account before?"}
+    known -- Yes --> same["Same account"]
+    known -- No --> taken{"Email already<br/>has an account?"}
+    taken -- No --> create["New account, with the<br/>name and picture from Google"]
+    taken -- Yes --> confirmed{"Address confirmed<br/>by Google?"}
+    confirmed -- No --> refused["Refused"]
+    confirmed -- Yes --> verified{"Account already<br/>verified?"}
+    verified -- Yes --> join["Join the account"]
+    verified -- No --> claim["Join the account, and its<br/>password stops working"]
+```
 
 A backup includes the client secret, because PocketBase stores it in the database. The secret is applied from `.env` at every start, so changing it there is enough.
 

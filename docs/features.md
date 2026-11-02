@@ -5,7 +5,8 @@
 Three tabs: **Home · Workout · Progress**.
 
 ```mermaid
-flowchart LR
+flowchart TD
+    login["Sign in<br/>Google or email"]
     home["Home<br/>calendar, Today card"]
     workout["Workout<br/>program, discover, instant"]
     logger["Logger"]
@@ -13,6 +14,7 @@ flowchart LR
     celebrate["Celebration"]
     progress["Progress<br/>stats, history"]
 
+    login --> home
     home -- Start --> logger
     workout -- Start --> logger
     logger -- "End Workout" --> complete
@@ -42,12 +44,84 @@ Exercise illustrations: 64 exercises show a start/end pose line drawing that eas
 
 Body maps are SVG; theme is navy with an orange accent.
 
+## Planning
+
+The *Today* card picks one thing to show:
+
+```mermaid
+flowchart TD
+    active{"Workout in<br/>progress?"}
+    active -- Yes --> resume["Resume it"]
+    active -- No --> program{"Active program<br/>with days?"}
+    program -- No --> discover["Suggest finding a program"]
+    program -- Yes --> planned{"Day planned for<br/>today's date?"}
+    planned -- Yes --> chosen["Show the first one not done yet"]
+    planned -- No --> pins{"Any days pinned<br/>to weekdays?"}
+    pins -- No --> rotate["Show the day after<br/>the last one done"]
+    pins -- Yes --> pinned{"Pinned to<br/>today?"}
+    pinned -- Yes --> show["Show that day"]
+    pinned -- No --> rest["Rest day, with the next pinned day"]
+```
+
+Tapping a day on the calendar shows what fits that date:
+
+```mermaid
+flowchart LR
+    day{"Which date?"}
+    day -- "In the past" --> past["Logged workouts"]
+    day -- "Today or later" --> future["Logged workouts<br/>Planned days not done yet<br/>Program days to add"]
+```
+
+## Adaptive plans
+
+Adaptive plans repeat a 5-week cycle:
+
+```mermaid
+flowchart LR
+    build["Weeks 1-2<br/>Accumulation<br/>Sets as planned"]
+    peak["Week 3<br/>Accumulation<br/>One extra set"]
+    heavy["Week 4<br/>Intensification<br/>2 fewer reps, 30s more rest"]
+    deload["Week 5<br/>Deload<br/>Half the sets"]
+
+    build --> peak --> heavy --> deload --> build
+```
+
+## Progression
+
+How each exercise's next target is worked out from your last session. With the rule set to Off, or no history yet, the plan is used as written. In a deload week, any other rule goes about 10% lighter instead. Bodyweight exercises with no added weight gain a rep per set.
+
+**Linear:**
+
+```mermaid
+flowchart LR
+    hit{"Hit every rep<br/>last time?"}
+    hit -- Yes --> up["Add weight"]
+    hit -- No --> missed{"Missed 3 sessions<br/>in a row?"}
+    missed -- Yes --> back["Back off 10%"]
+    missed -- No --> hold["Same weight,<br/>go for every rep"]
+```
+
+**Double and Triple:**
+
+```mermaid
+flowchart TD
+    top{"Top of the rep range<br/>on every set?"}
+    top -- Yes --> triple{"Triple, and under<br/>its 2 extra sets?"}
+    triple -- Yes --> addset["Add a set"]
+    triple -- No --> up["Add weight, back to<br/>the bottom of the range"]
+    top -- No --> stalled{"No new reps in<br/>3 sessions?"}
+    stalled -- Yes --> back["Back off 10%"]
+    stalled -- No --> rep["One more rep per set"]
+```
+
 ## Data
 
 Sign in with Google, or with an email and password. Each account has a name and profile picture, editable in Settings. Data is stored in your account on the [backend](backend.md), and each device keeps a copy so the app works without a connection and catches up afterwards. Data already on a device uploads on first sign-in. Settings → Data exports/imports a JSON backup of everything, including progress photos.
 
 ```mermaid
 erDiagram
+    ACCOUNT ||--o{ ROUTINE : owns
+    ACCOUNT ||--o{ SESSION : owns
     ROUTINE ||--o{ WORKOUT_DAY : has
     WORKOUT_DAY ||--o{ DAY_ITEM : lists
     DAY_ITEM ||--o{ PLAN_SET : plans
