@@ -66,6 +66,8 @@ function renderScreen(s: Screen) {
   }
 }
 
+const depth = (): number => window.history.state?.depth ?? 0;
+
 export default function App() {
   const [hydrated, setHydrated] = useState(useStore.persist.hasHydrated());
   const userId = useAccount()?.id;
@@ -113,13 +115,25 @@ export default function App() {
     return () => clearTimeout(t);
   }, [rest]);
 
+  // Every screen is a browser history entry, so the phone's back gesture goes back a screen.
+  useEffect(() => {
+    window.history.replaceState({ depth: 0 }, '');
+    const onPop = (e: PopStateEvent) => setStack((st) => st.slice(0, e.state?.depth ?? 0));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   const nav: Nav = useMemo(
     () => ({
-      push: (s) => setStack((st) => [...st, s]),
-      pop: () => setStack((st) => st.slice(0, -1)),
+      push: (s) => {
+        window.history.pushState({ depth: depth() + 1 }, '');
+        setStack((st) => [...st, s]);
+      },
+      pop: () => window.history.back(),
       replace: (s) => setStack((st) => [...st.slice(0, -1), s]),
       reset: (t) => {
         setStack([]);
+        if (depth()) window.history.go(-depth());
         if (t) useUI.getState().set({ tab: t });
       },
     }),

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import { clear, get, set } from 'idb-keyval';
 import { useStore } from '../store';
 import { pb } from './pb';
@@ -28,6 +29,24 @@ let running = false;
 let wanted: 'push' | 'full' | null = null;
 let pushTimer = 0;
 let retryTimer = 0;
+let waiting = false;
+const waitingListeners = new Set<() => void>();
+
+function setWaiting(v: boolean) {
+  if (v === waiting) return;
+  waiting = v;
+  waitingListeners.forEach((l) => l());
+}
+
+// True while changes are on this device but haven't reached the server.
+export const useSyncWaiting = () =>
+  useSyncExternalStore(
+    (notify) => {
+      waitingListeners.add(notify);
+      return () => waitingListeners.delete(notify);
+    },
+    () => waiting,
+  );
 
 async function pull() {
   const user = pb.authStore.record!.id;
@@ -111,11 +130,13 @@ async function run() {
     try {
       if (kind === 'full') await pull();
       await push();
+      setWaiting(false);
     } catch (e) {
       const status = (e as { status?: number }).status;
       // An expired sign-in: pending changes stay on the device for the next sign-in.
       if (status === 401) pb.authStore.clear();
       else {
+        setWaiting(true);
         clearTimeout(retryTimer);
         retryTimer = window.setTimeout(() => request('full'), RETRY_MS);
       }

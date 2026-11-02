@@ -305,7 +305,7 @@ export function SessionScreen() {
             <h2>{ex?.name ?? 'Exercise'}</h2>
             {!cardio && (
               <span className="lg-1rm">
-                1RM: <b>{best ? toDisplay(best, settings).toFixed(2) : '--'}</b>
+                1RM: <b>{best ? toDisplay(best, settings) : '--'}</b>
               </span>
             )}
           </div>

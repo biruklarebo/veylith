@@ -6,7 +6,7 @@ import { DEFAULT_BAR, DEFAULT_PLATES, barOf, platesOf } from '../lib/plates';
 import { blobToDataUrl, dataUrlToBlob, deletePhotoBlob, loadPhotoBlob, savePhotoBlob, shrinkImage } from '../lib/photos';
 import { dayKey } from '../lib/calc';
 import { pb, useAccount } from '../lib/pb';
-import { signOut } from '../lib/sync';
+import { signOut, useSyncWaiting } from '../lib/sync';
 import type { EffortScale, Routine } from '../types';
 
 const AVATAR_PX = 512;
@@ -78,6 +78,7 @@ function ProfileCard() {
 
 export function SettingsScreen() {
   const { settings, updateSettings, sessions, routines, activeRoutineId, bodyStats, customExercises, records, curated, photos, schedule } = useStore();
+  const waiting = useSyncWaiting();
 
   const exportData = async () => {
     const photoData: Record<string, string> = {};
@@ -204,6 +205,7 @@ export function SettingsScreen() {
       <section className="card">
         <h3>Data</h3>
         <p className="muted small">Your data is stored in your account. This device keeps a copy, so the app works without a connection and catches up afterwards.</p>
+        {waiting && <p className="sync-note">Some changes are waiting to sync.</p>}
         <div className="row gap">
           <button className="btn grow" onClick={exportData}>
             Export JSON

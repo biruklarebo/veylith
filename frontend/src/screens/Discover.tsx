@@ -4,6 +4,9 @@ import { findExercise, useStore } from '../store';
 import { dayKey, estDaySeconds, fmtEst, fmtHMS, muscleHeat, weekStreak } from '../lib/calc';
 import { plannedOn, todayPlan } from '../lib/plans';
 import { useNow } from '../lib/alarm';
+import { useAccount } from '../lib/pb';
+import { useSyncWaiting } from '../lib/sync';
+import { ProfileButton } from '../components/Avatar';
 import { BodyMap } from '../components/BodyMap';
 import { weeklyCheckIn, type CheckAction } from '../lib/checkin';
 import { BodyWeightCard } from '../components/BodyWeightCard';
@@ -20,18 +23,18 @@ const dayHeat = (d: WorkoutDay, custom: Exercise[]) =>
   }));
 
 export function Discover() {
-  const nav = useNav();
+  const firstName = useAccount()?.name?.split(' ')[0];
+  const waiting = useSyncWaiting();
   const now = new Date();
   return (
     <div className="page">
       <header className="home-head">
-        <div>
-          <h1 className="title">Home</h1>
+        <div className="home-hello">
+          <h1 className="title">{firstName ? `Hi, ${firstName}` : 'Home'}</h1>
           <p className="muted">{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          {waiting && <p className="sync-note">Saved on this device. Will sync when you're back online.</p>}
         </div>
-        <button className="icon-btn" onClick={() => nav.push({ kind: 'settings' })} aria-label="Settings">
-          ⚙
-        </button>
+        <ProfileButton />
       </header>
 
       <TodayCard />
@@ -292,7 +295,9 @@ function CheckInCard() {
             ))}
           </ul>
         ) : (
-          <p className="muted small">Log a few workouts and your check-in fills in: progress on your lifts, stalls, weak spots and what to do next.</p>
+          <p className="muted small">
+            {sessions.length ? 'Nothing logged yet this week. Your review fills in as you train.' : 'Log a few workouts and your check-in fills in: progress on your lifts, stalls, weak spots and what to do next.'}
+          </p>
         ))}
       {confirm}
     </section>

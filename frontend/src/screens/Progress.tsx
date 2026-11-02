@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNav } from '../nav';
 import { findExercise, useStore } from '../store';
-import { dayKey, fmtDuration, fmtWeight, sessionSetCount, sessionVolume, weekStreak } from '../lib/calc';
+import { dayKey, fmtDay, fmtDuration, fmtWeight, sessionSetCount, sessionVolume, weekStreak } from '../lib/calc';
+import { ProfileButton } from '../components/Avatar';
 import { BodyWeightCard } from '../components/BodyWeightCard';
 import { DaySheet } from '../components/DaySheet';
 import { Thumb } from './Photos';
@@ -10,9 +11,12 @@ import { daysSince, fatigue, hoursToReady, volume } from '../lib/recovery';
 import { Empty } from '../components/ui';
 import { BODY_PARTS, type Session } from '../types';
 
+const HISTORY_PREVIEW = 5;
+
 export function Progress() {
   const nav = useNav();
   const { sessions, records, customExercises, settings } = useStore();
+  const [allHistory, setAllHistory] = useState(false);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
   const monthCount = sessions.filter((s) => s.start >= monthStart).length;
   const topRecords = Object.entries(records)
@@ -26,9 +30,7 @@ export function Progress() {
     <div className="page">
       <header className="home-head">
         <h1 className="title">Progress</h1>
-        <button className="icon-btn" onClick={() => nav.push({ kind: 'settings' })} aria-label="Settings">
-          ⚙
-        </button>
+        <ProfileButton />
       </header>
 
       <div className="stat-tiles">
@@ -81,21 +83,28 @@ export function Progress() {
       {sessions.length === 0 ? (
         <Empty title="Nothing logged yet" />
       ) : (
-        <ul className="list">
-          {sessions.map((s) => (
-            <li key={s.id}>
-              <button className="list-item" onClick={() => nav.push({ kind: 'history', id: s.id })}>
-                <div className="grow">
-                  <b>{s.name}</b>
-                  <p className="muted small">
-                    {new Date(s.start).toLocaleDateString()} · {fmtDuration((s.end ?? s.start) - s.start)} · {sessionSetCount(s)} sets
-                  </p>
-                </div>
-                <span className="chev">›</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="list">
+            {(allHistory ? sessions : sessions.slice(0, HISTORY_PREVIEW)).map((s) => (
+              <li key={s.id}>
+                <button className="list-item" onClick={() => nav.push({ kind: 'history', id: s.id })}>
+                  <div className="grow">
+                    <b>{s.name}</b>
+                    <p className="muted small">
+                      {fmtDay(s.start)} · {fmtDuration((s.end ?? s.start) - s.start)} · {sessionSetCount(s)} sets
+                    </p>
+                  </div>
+                  <span className="chev">›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {!allHistory && sessions.length > HISTORY_PREVIEW && (
+            <button className="btn block" onClick={() => setAllHistory(true)}>
+              Show all {sessions.length} workouts
+            </button>
+          )}
+        </>
       )}
     </div>
   );

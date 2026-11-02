@@ -60,6 +60,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-size: 15px; li
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; padding: 0; }
 button:disabled { opacity: 0.4; cursor: default; }
+button:focus-visible, a:focus-visible, label:has(input[type='file']:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1, h2, h3, p { margin: 0; }
 h2 { font-size: 20px; }
 h3 { font-size: 16px; }
@@ -402,7 +403,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .lg-row.current { background: var(--surface); }
 .set-tag { font-size: 20px; font-weight: 600; text-align: left; height: 44px; }
 .set-tag.plus { font-size: 30px; font-weight: 300; }
-.num { width: 100%; background: none; border: 0; padding: 4px 0; font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 0; color: var(--faint); }
+.num { width: 100%; background: none; border: 0; padding: 4px 0; font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: 0; color: var(--muted); }
 .num:focus { outline: none; text-decoration: underline; text-underline-offset: 6px; }
 .lg-row.logged .num { color: var(--text); }
 .lg-row.current .num { color: var(--accent); }
@@ -698,6 +699,11 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 .login-error { color: var(--danger); font-size: 14px; margin: 0; }
 .google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .login-or { text-align: center; margin: 0; }
+.home-hello { min-width: 0; }
+.home-hello .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-note { margin: 4px 0 0; font-size: 13px; color: var(--warn); }
+.profile-btn { flex: none; margin-left: 12px; border-radius: 50%; }
+.profile-btn .avatar { width: 44px; height: 44px; font-size: 18px; }
 .profile-row { display: flex; align-items: center; gap: 14px; }
 .profile-row .muted { margin: 6px 0 0; overflow-wrap: anywhere; }
 .avatar { width: 64px; height: 64px; flex: none; border-radius: 50%; object-fit: cover; display: grid; place-items: center; font-size: 26px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
@@ -969,7 +975,8 @@ body.flash::after { content: ''; position: fixed; inset: 0; background: var(--ac
 
 /* home: week nav, today map, choose-other */
 .week-nav { display: flex; align-items: center; gap: 6px; }
-.week-nav .icon-btn { width: 34px; height: 34px; }
+.week-nav .icon-btn { width: 40px; height: 40px; flex: none; }
+.week-nav .center { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .today-name { font-size: 19px; }
 .today-map { flex: none; display: flex; gap: 2px; width: 74px; }
 .today-map .bm { height: 64px; width: auto; }
