@@ -75,7 +75,7 @@ export function RoutineDetail({ id }: { id: string }) {
             </select>
           </label>
         </div>
-        <label className="prog-pick">
+        <div className="prog-pick">
           <span className="muted small">Progression</span>
           <div className="seg-ctl" role="radiogroup" aria-label="Progression rule">
             {RULES.map((x) => (
@@ -85,7 +85,7 @@ export function RoutineDetail({ id }: { id: string }) {
             ))}
           </div>
           <span className="muted small">{RULES.find((x) => x.id === ruleFor(r))!.desc}</span>
-        </label>
+        </div>
         <button
           className={`btn block ${r.id === activeRoutineId ? '' : 'primary'}`}
           onClick={() => setActiveRoutine(r.id === activeRoutineId ? null : r.id)}

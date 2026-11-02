@@ -10,6 +10,7 @@ export function oneRepMax(weightLbs: number, reps: number): number {
 }
 
 export function weightForReps(oneRm: number, reps: number): number {
+  if (reps <= 1) return oneRm;
   return oneRm / (1 + reps / 30);
 }
 
@@ -21,6 +22,9 @@ export function toDisplay(lbs: number, s: Settings): number {
 export function fromDisplay(v: number, s: Settings): number {
   return s.unit === 'kg' ? v * LB_PER_KG : v;
 }
+
+// Decimal keypads type a comma in many locales.
+export const parseNum = (t: string) => parseFloat(t.replace(',', '.'));
 
 export function fmtWeight(lbs: number, s: Settings): string {
   return `${toDisplay(lbs, s)} ${s.unit}`;
@@ -74,14 +78,15 @@ export function weekStreak(sessions: Session[]): number {
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return d.getTime();
   };
+  // Step by calendar date: a week is not always 7 × 24 hours when the clocks change.
+  const prevWeek = (t: number) => new Date(t).setDate(new Date(t).getDate() - 7);
   const weeks = new Set(sessions.filter((s) => s.end).map((s) => weekOf(s.start)));
-  const WEEK = 7 * 864e5;
   let cur = weekOf(Date.now());
-  if (!weeks.has(cur)) cur -= WEEK;
+  if (!weeks.has(cur)) cur = prevWeek(cur);
   let n = 0;
   while (weeks.has(cur)) {
     n++;
-    cur -= WEEK;
+    cur = prevWeek(cur);
   }
   return n;
 }
@@ -103,8 +108,13 @@ export function fmtEst(sec: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+// Whole calendar days between `t` and `now`: last night is 1, however few hours ago it was.
+export function daysAgo(t: number, now = Date.now()): number {
+  return Math.round((new Date(now).setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 864e5);
+}
+
 export function timeAgo(t: number): string {
-  const d = Math.floor((Date.now() - t) / 864e5);
+  const d = daysAgo(t);
   if (d <= 0) return 'Today';
   if (d < 14) return `${d}d ago`;
   if (d < 60) return `${Math.floor(d / 7)}w ago`;

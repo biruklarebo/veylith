@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
+// Rendered on <body>: an animated ancestor (every .card) would otherwise trap the fixed overlay.
 export function Sheet({ open, onClose, children, title, sub }: { open: boolean; onClose: () => void; children: ReactNode; title?: string; sub?: string }) {
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="sheet-wrap" onClick={onClose}>
       <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <span className="grabber" />
@@ -14,7 +16,8 @@ export function Sheet({ open, onClose, children, title, sub }: { open: boolean; 
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

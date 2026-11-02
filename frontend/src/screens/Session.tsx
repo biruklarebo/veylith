@@ -4,12 +4,12 @@ import { findExercise, previousLog, useStore } from '../store';
 import { fmtClock, fmtHMS, fromDisplay, logBest1RM, toDisplay } from '../lib/calc';
 import { beep, tap, useNow } from '../lib/alarm';
 import { RULE_NAME } from '../lib/progression';
-import { fmtPlates, loadBar, usesPlates, warmupRamp } from '../lib/plates';
+import { barOf, fmtPlates, loadBar, usesPlates, warmupRamp } from '../lib/plates';
 import { EFFORT_LEVELS, effortHue, effortLabel, effortScale, fmtSetsWithEffort } from '../lib/effort';
 import { Figure, exerciseHeat } from '../components/BodyMap';
 import { ExerciseArt, hasArt } from '../components/ExerciseArt';
 import { ActionSheet, Sheet } from '../components/Sheet';
-import { Empty, Toast, type ToastMsg } from '../components/ui';
+import { Empty, NumField, Toast, type ToastMsg } from '../components/ui';
 import type { EffortScale, ExerciseLog, LogTarget, LoggedSet, Session, SetType, Settings } from '../types';
 
 export const SET_TYPES: { id: SetType; short: string; label: string; help: string }[] = [
@@ -65,7 +65,8 @@ export function SessionScreen() {
   const cardio = ex?.recordType === 'cardio';
   const bw = ex?.recordType === 'bodyweight';
   const open = log ? firstOpen(log) : -1;
-  const cur = sel ?? open;
+  // The picked set may have just been deleted.
+  const cur = sel !== null && log?.sets[sel] ? sel : open;
   const allDone = !!log && log.sets.length > 0 && open < 0;
   const last = idx === s.logs.length - 1;
   const restLeft = s.rest ? (s.rest.pausedLeft ?? Math.max(0, (s.rest.endsAt - now) / 1000)) : 0;
@@ -171,7 +172,7 @@ export function SessionScreen() {
   };
 
   const addSet = () =>
-    patchLog((l) => ({ ...l, sets: [...l.sets, { ...(l.sets.at(-1) ?? { type: 'regular', weightLbs: 0, reps: 10, rest: l.rest }), done: false }] }));
+    patchLog((l) => ({ ...l, sets: [...l.sets, { ...(l.sets.at(-1) ?? { type: 'regular', weightLbs: 0, reps: 10, rest: l.rest }), done: false, rir: undefined }] }));
   const deleteSet = () =>
     patchLog((l) => {
       const j = l.sets.map((x) => x.done).lastIndexOf(false);
@@ -184,7 +185,7 @@ export function SessionScreen() {
     const n = template?.sets.length ?? 3;
     return {
       exerciseId,
-      supersetId: 0,
+      supersetId: template?.supersetId ?? 0,
       rest: template?.rest ?? settings.defaultRest,
       sets: Array.from({ length: n }, (_, k) => ({
         type: template?.sets[k]?.type ?? 'regular',
@@ -308,7 +309,7 @@ export function SessionScreen() {
               </span>
             )}
           </div>
-          {log.supersetId > 0 && <p className="ss-note accent small">Superset · alternates with the next exercise</p>}
+          {log.supersetId > 0 && s.logs.some((l, k) => k !== idx && l.supersetId === log.supersetId) && <p className="ss-note accent small">Superset · alternates with the next exercise</p>}
           <div className="lg-info">
             {prev && (
               <p className="muted">
@@ -691,29 +692,7 @@ function Segments({ s, idx, onPick }: { s: Session; idx: number; onPick: (i: num
 }
 
 function NumInput({ value, onChange, onFocus, decimal, label }: { value: number; onChange: (v: number) => void; onFocus: () => void; decimal?: boolean; label: string }) {
-  const [text, setText] = useState<string | null>(null);
-  // A stepper can change the value while this field is focused: show the new number.
-  useEffect(() => setText((t) => (t !== null && parseFloat(t) !== value ? String(value) : t)), [value]);
-  return (
-    <input
-      className="num"
-      inputMode={decimal ? 'decimal' : 'numeric'}
-      aria-label={label}
-      value={text ?? (Number.isFinite(value) ? String(value) : '')}
-      onClick={(e) => e.stopPropagation()}
-      onFocus={(e) => {
-        onFocus();
-        setText(String(value));
-        e.currentTarget.select();
-      }}
-      onChange={(e) => {
-        setText(e.target.value);
-        const v = parseFloat(e.target.value);
-        onChange(Number.isNaN(v) ? 0 : decimal ? v : Math.round(v));
-      }}
-      onBlur={() => setText(null)}
-    />
-  );
+  return <NumField className="num" value={value} decimal={decimal} label={label} onChange={(v) => onChange(v ?? 0)} onFocus={onFocus} onClick={(e) => e.stopPropagation()} />;
 }
 
 // Work/rest interval timer (e.g. for cardio or timed holds).
@@ -773,7 +752,13 @@ function IntervalSheet({ open, onClose }: { open: boolean; onClose: () => void }
             {stepper('Rest', rest, setRest, 5)}
             {stepper('Rounds', rounds, setRounds, 1)}
           </div>
-          <button className="btn primary block" onClick={() => setRun({ phase: 'work', round: 1, endsAt: Date.now() + work * 1000 })}>
+          <button
+            className="btn primary block"
+            onClick={() => {
+              tap();
+              setRun({ phase: 'work', round: 1, endsAt: Date.now() + work * 1000 });
+            }}
+          >
             Start
           </button>
         </>
@@ -811,7 +796,7 @@ function PlateSheet({ open, weightLbs, settings, onClose }: { open: boolean; wei
   return (
     <Sheet open={open} onClose={onClose} title={`${toDisplay(weightLbs, settings)} ${settings.unit}`} sub="Plates on each side">
       {!r ? (
-        <p className="muted">Lighter than the bar ({settings.unit === 'kg' ? '20 kg' : '45 lb'}).</p>
+        <p className="muted">Lighter than the bar ({barOf(settings)} {settings.unit}).</p>
       ) : (
         <>
           <svg className="plate-art" viewBox="0 0 300 120" role="img" aria-label={`${fmtPlates(r.perSide)} per side`}>

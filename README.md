@@ -27,7 +27,7 @@ In containers, at http://localhost:8088:
 ./stack.sh help      # list all commands
 ```
 
-On Windows, run it from Git Bash or WSL. From PowerShell, use `bash ./stack.sh <command>`.
+On Windows, run it from Ubuntu in WSL with Docker Desktop closed (see [Containers](docs/containers.md)).
 
 For frontend development, at http://localhost:5173:
 

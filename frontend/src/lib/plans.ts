@@ -1,7 +1,7 @@
 import { CATALOG, type PlanTemplate } from '../data/catalog';
 import { SEED_EXERCISES } from '../data/exercises';
-import { estDaySeconds, muscleHeat, uid } from './calc';
-import type { DayItem, Equipment, Exercise, Focus, Location, PlanSet, Routine, Session, WorkoutDay } from '../types';
+import { dayKey, estDaySeconds, muscleHeat, uid } from './calc';
+import type { DayItem, Equipment, Exercise, Focus, Location, PlanSet, Routine, ScheduledDay, Session, WorkoutDay } from '../types';
 
 const byId = new Map(SEED_EXERCISES.map((e) => [e.id, e]));
 export const HOME_EQUIPMENT: Equipment[] = ['Bodyweight', 'Dumbbell', 'Band', 'Kettlebell', 'Other'];
@@ -132,7 +132,7 @@ export function applyPhase(day: WorkoutDay, p: { phase: Phase; week: number }): 
     ...day,
     items: day.items.map((it) => {
       let s = it.sets;
-      if (p.phase === 'Accumulation' && p.week >= 3) s = [...s, s[s.length - 1]];
+      if (p.phase === 'Accumulation' && p.week >= 3 && s.length) s = [...s, s[s.length - 1]];
       if (p.phase === 'Intensification') s = s.map((x) => ({ ...x, reps: Math.max(3, x.reps - 2), rest: x.rest + 30 }));
       if (p.phase === 'Deload') s = s.slice(0, Math.max(1, Math.ceil(s.length / 2)));
       return { ...it, sets: s };
@@ -208,12 +208,36 @@ export function generateAdaptive(p: AdaptivePrefs, exercises: Exercise[] = SEED_
   };
 }
 
-// What the plan says for today. Days pinned to weekdays follow the calendar (no match = rest
-// day, with the next pinned day); otherwise the plan rotates: the day after the last one done.
-export function todayPlan(r: Routine | undefined, sessions: Session[], now = new Date()): { day?: WorkoutDay; rest?: boolean; next?: { day: WorkoutDay; inDays: number }; doneToday: boolean } {
+// Program days planned for one date, in the active program.
+const scheduledOn = (date: Date, r: Routine, schedule: ScheduledDay[]) =>
+  schedule.flatMap((x) => {
+    const day = x.routineId === r.id && x.date === dayKey(date) ? r.days.find((d) => d.id === x.dayId) : undefined;
+    return day ? [day] : [];
+  });
+
+// What is still to do on a date from today on: days planned for it, then weekly pins.
+export function plannedOn(date: Date, r: Routine | undefined, schedule: ScheduledDay[], sessions: Session[]): { day: WorkoutDay; scheduled: boolean }[] {
+  const key = dayKey(date);
+  if (!r || key < dayKey(Date.now())) return [];
+  const weekday = (date.getDay() + 6) % 7;
+  const chosen = scheduledOn(date, r, schedule);
+  const pinned = r.days.filter((d) => d.weekday === weekday && !chosen.includes(d));
+  const logged = sessions.filter((s) => dayKey(s.start) === key);
+  return [...chosen.map((day) => ({ day, scheduled: true })), ...pinned.map((day) => ({ day, scheduled: false }))].filter((p) => !logged.some((s) => s.dayId === p.day.id));
+}
+
+// What the plan says for today. A day planned for this date comes first. Days pinned to weekdays
+// follow the calendar (no match = rest day, with the next pinned day); otherwise the plan
+// rotates: the day after the last one done.
+export function todayPlan(r: Routine | undefined, sessions: Session[], schedule: ScheduledDay[] = [], now = new Date()): { day?: WorkoutDay; rest?: boolean; next?: { day: WorkoutDay; inDays: number }; doneToday: boolean } {
   if (!r?.days.length) return { doneToday: false };
   const dow = (now.getDay() + 6) % 7;
   const today = new Date(now).setHours(0, 0, 0, 0);
+  const chosen = scheduledOn(now, r, schedule);
+  if (chosen.length) {
+    const todo = chosen.find((d) => !sessions.some((s) => s.dayId === d.id && s.start >= today));
+    return { day: todo ?? chosen[0], doneToday: !todo };
+  }
   const pinned = r.days.filter((d) => d.weekday !== undefined);
   let day: WorkoutDay | undefined;
   if (pinned.length) {

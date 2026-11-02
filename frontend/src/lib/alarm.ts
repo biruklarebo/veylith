@@ -1,8 +1,22 @@
 import { useEffect, useState } from 'react';
 
-export function beep(times = 3) {
+let audio: AudioContext | undefined;
+
+// One shared context: browsers cap how many can exist, and iOS only unlocks one during a tap,
+// so taps prime it for the rest alarm that fires later from a timer.
+function primeAudio() {
   try {
-    const ctx = new AudioContext();
+    audio ??= new AudioContext();
+    if (audio.state === 'suspended') void audio.resume();
+  } catch {
+    /* audio unavailable */
+  }
+  return audio;
+}
+
+export function beep(times = 3) {
+  const ctx = primeAudio();
+  ctx?.resume().then(() => {
     for (let k = 0; k < times; k++) {
       const at = k * 0.25;
       const o = ctx.createOscillator();
@@ -14,9 +28,7 @@ export function beep(times = 3) {
       o.start(ctx.currentTime + at);
       o.stop(ctx.currentTime + at + 0.2);
     }
-  } catch {
-    /* audio unavailable */
-  }
+  }, () => {});
   navigator.vibrate?.([300, 120, 300]);
 }
 
@@ -29,7 +41,10 @@ export function useNow(interval = 1000) {
   return now;
 }
 
-export const tap = () => navigator.vibrate?.(12);
+export const tap = () => {
+  primeAudio();
+  navigator.vibrate?.(12);
+};
 
 // Blink the screen in the accent colour (rest over). Pure CSS on <body>; reduced-motion skips it.
 export function flashScreen() {

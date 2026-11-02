@@ -66,19 +66,18 @@ export function PhotosScreen() {
     return best && best.length >= 2 ? [best[0].id, best[best.length - 1].id] : null;
   }, [photos]);
 
-  const toggle = (id: string) =>
-    setPicking((cur) => {
-      if (!cur) return cur;
-      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id].slice(-2);
-      if (next.length === 2) {
-        const [a, b] = [...next].sort((x, y) => photos.findIndex((p) => p.id === x) - photos.findIndex((p) => p.id === y));
-        setTimeout(() => {
-          setPicking(null);
-          nav.push({ kind: 'compare', a, b });
-        }, 150);
-      }
-      return next;
-    });
+  const toggle = (id: string) => {
+    if (!picking) return;
+    const next = picking.includes(id) ? picking.filter((x) => x !== id) : [...picking, id].slice(-2);
+    setPicking(next);
+    if (next.length === 2) {
+      const [a, b] = [...next].sort((x, y) => photos.findIndex((p) => p.id === x) - photos.findIndex((p) => p.id === y));
+      setTimeout(() => {
+        setPicking(null);
+        nav.push({ kind: 'compare', a, b });
+      }, 150);
+    }
+  };
 
   return (
     <div className="page photos">
@@ -173,6 +172,7 @@ export function PhotosScreen() {
       />
 
       <ViewSheet
+        key={view?.id}
         photo={view}
         onClose={() => setView(null)}
         onPose={(pp) => {

@@ -9,7 +9,7 @@ import { nextTarget, ruleFor } from './lib/progression';
 import { blockFor, currentWeek, daysForWeek, guessExercise, matchExercise, nameKey, parseProgram, type ParsedProgram } from './lib/programImport';
 import { SEED_PROGRAMS } from './data/programs';
 import type {
-  BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, Session, Settings, WorkoutDay,
+  BodyStat, CuratedProgram, DayItem, ProgressPhoto, Exercise, ExerciseLog, ExerciseRecord, LoggedSet, ProgressionRule, Routine, ScheduledDay, Session, Settings, WorkoutDay,
 } from './types';
 
 const idbStorage: StateStorage = {
@@ -49,6 +49,7 @@ interface State {
   bodyStats: BodyStat[];
   photos: ProgressPhoto[];
   curated: CuratedProgram[];
+  schedule: ScheduledDay[];
   settings: Settings;
 
   addCustomExercise: (e: Omit<Exercise, 'id' | 'custom'>) => Exercise;
@@ -58,6 +59,8 @@ interface State {
   adoptPlan: (r: Routine) => void;
   updateDay: (routineId: string, day: WorkoutDay) => void;
   moveDay: (routineId: string, from: number, to: number) => void;
+  scheduleDay: (date: string, routineId: string, dayId: string) => void;
+  unscheduleDay: (date: string, routineId: string, dayId: string) => void;
 
   startSession: (routineId?: string, dayId?: string) => void;
   startInstant: (name: string, items: DayItem[]) => void;
@@ -165,6 +168,7 @@ export const useStore = create<State>()(
       bodyStats: [],
       photos: [],
       curated: seeded.curated,
+      schedule: [],
       settings: { unit: 'lb', defaultRest: 90, restTimerOn: true },
 
       addCustomExercise: (e) => {
@@ -201,6 +205,9 @@ export const useStore = create<State>()(
             return { ...r, days };
           }),
         })),
+      scheduleDay: (date, routineId, dayId) => setState((s) => ({ schedule: [...s.schedule, { date, routineId, dayId }] })),
+      unscheduleDay: (date, routineId, dayId) =>
+        setState((s) => ({ schedule: s.schedule.filter((x) => !(x.date === date && x.routineId === routineId && x.dayId === dayId)) })),
 
       startSession: (routineId, dayId) => {
         getState().refreshGuided();
@@ -292,7 +299,27 @@ export const useStore = create<State>()(
         return { session, prs, number: sessions.length + (logs.length ? 1 : 0) };
       },
       discardSession: () => setState({ activeSession: null }),
-      deleteSession: (id) => setState((s) => ({ sessions: s.sessions.filter((x) => x.id !== id) })),
+      deleteSession: (id) =>
+        setState((s) => {
+          const gone = s.sessions.find((x) => x.id === id);
+          const sessions = s.sessions.filter((x) => x.id !== id);
+          // A record set in the deleted workout goes with it: fall back to the best one left.
+          const records = { ...s.records };
+          for (const l of gone?.logs ?? []) {
+            let best = 0;
+            let bestAt = 0;
+            for (const x of sessions)
+              for (const y of x.logs) {
+                const v = y.exerciseId === l.exerciseId ? logBest1RM(y) : 0;
+                if (v > best) {
+                  best = v;
+                  bestAt = x.end ?? x.start;
+                }
+              }
+            records[l.exerciseId] = { ...records[l.exerciseId], best1RM: best, bestAt };
+          }
+          return { sessions, records };
+        }),
 
       setTarget1RM: (exerciseId, target) =>
         setState((s) => ({

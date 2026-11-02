@@ -425,7 +425,7 @@ function Instant() {
   const [minutes, setMinutes] = useState(45);
   const [equip, setEquip] = useState<Equipment[]>([]);
   const [seed, setSeed] = useState(0);
-  const [saved, setSaved] = useState(false);
+  const [savedPicks, setSavedPicks] = useState('');
 
   // ~8 minutes per exercise at 3 sets with rest.
   const count = Math.max(2, Math.round(minutes / 8));
@@ -449,6 +449,8 @@ function Instant() {
   }));
   const name = parts.length ? `${parts.map((p) => BODY_PARTS[p]).join(' & ')} Workout` : 'Quick Workout';
   const plan = routines.find((r) => r.id === activeRoutineId);
+  const picksKey = picks.map((e) => e.id).join();
+  const saved = picksKey === savedPicks;
 
   return (
     <div className="day-list">
@@ -459,10 +461,7 @@ function Instant() {
             <button
               key={b}
               className={`chip ${parts.includes(i) ? 'on' : ''}`}
-              onClick={() => {
-                setSaved(false);
-                setParts((p) => (p.includes(i) ? p.filter((x) => x !== i) : [...p, i]));
-              }}
+              onClick={() => setParts((p) => (p.includes(i) ? p.filter((x) => x !== i) : [...p, i]))}
             >
               {b}
             </button>
@@ -523,7 +522,7 @@ function Instant() {
             disabled={!items.length || saved}
             onClick={() => {
               saveRoutine({ ...plan, days: [...plan.days, { id: uid(), name, items }] });
-              setSaved(true);
+              setSavedPicks(picksKey);
             }}
           >
             {saved ? 'Saved to plan' : 'Save to plan'}

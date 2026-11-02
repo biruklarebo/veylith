@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useNav } from '../nav';
+import { parseNum } from '../lib/calc';
 import { BODY_PARTS } from '../types';
 
 export function Header({ title, back = true, right }: { title: string; back?: boolean; right?: ReactNode }) {
@@ -68,6 +69,54 @@ export function Stepper({
         +
       </button>
     </div>
+  );
+}
+
+// Number box that keeps what is being typed ("12.", or empty) and only tidies it on blur.
+export function NumField({
+  value,
+  onChange,
+  label,
+  decimal,
+  className,
+  placeholder,
+  onFocus,
+  onClick,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+  label: string;
+  decimal?: boolean;
+  className?: string;
+  placeholder?: string;
+  onFocus?: () => void;
+  onClick?: (e: MouseEvent<HTMLInputElement>) => void;
+}) {
+  const shown = value === null || !Number.isFinite(value) ? '' : String(value);
+  const [text, setText] = useState<string | null>(null);
+  // A stepper can change the value while this field is focused: show the new number. The
+  // tolerance allows for the rounding of displayed weights, which must not rewrite the typing.
+  useEffect(() => setText((t) => (t !== null && Math.abs(parseNum(t) - (value ?? 0)) >= 0.06 ? shown : t)), [value, shown]);
+  return (
+    <input
+      className={className}
+      inputMode={decimal ? 'decimal' : 'numeric'}
+      aria-label={label}
+      placeholder={placeholder}
+      value={text ?? shown}
+      onClick={onClick}
+      onFocus={(e) => {
+        onFocus?.();
+        setText(shown);
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        setText(e.target.value);
+        const v = parseNum(e.target.value);
+        onChange(Number.isNaN(v) ? null : decimal ? v : Math.round(v));
+      }}
+      onBlur={() => setText(null)}
+    />
   );
 }
 
