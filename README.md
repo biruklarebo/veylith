@@ -70,3 +70,4 @@ npm run build
 - [Containers](docs/containers.md)
 - [Backend](docs/backend.md)
 - [Database](docs/database.md)
+- [Changelog](CHANGELOG.md)
