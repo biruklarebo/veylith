@@ -37,7 +37,7 @@ export function BodyWeightCard() {
   return (
     <section className="card bw-card">
       <div className="row gap">
-        <h3 className="grow muted-h">Body weight</h3>
+        <h3 className="grow">Body weight</h3>
         <button className="bw-goal" onClick={() => setGoalOpen(true)} aria-label={goal ? `Goal ${goal} ${u}, change` : 'Set a goal'}>
           ◎ {goal ?? 'Goal'}
         </button>

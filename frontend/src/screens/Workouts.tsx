@@ -265,7 +265,7 @@ function Overview({ r }: { r: Routine }) {
             <button className="day-main" onClick={() => ui.set({ planTab: 'details', dayId: d.id })}>
               <MuscleThumb heat={dayHeat(d, customExercises)} />
               <div className="grow">
-                <span className="wd-badge">{d.weekday === undefined ? 'Any' : WEEKDAYS[d.weekday]}</span>
+                {d.weekday !== undefined && <span className="wd-badge">{WEEKDAYS[d.weekday]}</span>}
                 <b className="day-name">{d.name}</b>
                 <p className="muted">
                   Est. {fmtEst(estDaySeconds(d))}, {d.items.length} exercises
@@ -332,7 +332,7 @@ function DayDetails({ r }: { r: Routine }) {
         <header className="detail-head">
           <div className="grow">
             <div className="row gap-sm">
-              <span className="wd-badge">{day.weekday === undefined ? 'Any' : WEEKDAYS[day.weekday]}</span>
+              {day.weekday !== undefined && <span className="wd-badge">{WEEKDAYS[day.weekday]}</span>}
               <b className="day-name">{day.name}</b>
             </div>
             <p className="accent">

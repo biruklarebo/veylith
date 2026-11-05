@@ -27,7 +27,7 @@ export function fromDisplay(v: number, s: Settings): number {
 export const parseNum = (t: string) => parseFloat(t.replace(',', '.'));
 
 export function fmtWeight(lbs: number, s: Settings): string {
-  return `${toDisplay(lbs, s)} ${s.unit}`;
+  return `${toDisplay(lbs, s).toLocaleString()} ${s.unit}`;
 }
 
 const countsForVolume = (set: LoggedSet) => set.done && set.type !== 'warmup';
@@ -51,9 +51,18 @@ export function fmtDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
-  const sec = total % 60;
   if (h) return `${h}h ${m}m`;
-  return `${m}:${String(sec).padStart(2, '0')}`;
+  return `${Math.max(1, m)} min`;
+}
+
+// A past date for a list: Today, Yesterday, or a short date with the year once it differs.
+export function fmtDay(t: number): string {
+  const now = Date.now();
+  const ago = daysAgo(t, now);
+  if (ago === 0) return 'Today';
+  if (ago === 1) return 'Yesterday';
+  const year = new Date(t).getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric';
+  return new Date(t).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year });
 }
 
 export function fmtClock(sec: number): string {

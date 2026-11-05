@@ -19,7 +19,7 @@ function sessionHeat(logs: ExerciseLog[], custom: Exercise[]) {
   );
 }
 
-const unitLabel = (s: Settings) => (s.unit === 'kg' ? 'kg' : 'lbs');
+const unitLabel = (s: Settings) => s.unit;
 
 function ExerciseTables({ logs, onMore, note }: { logs: ExerciseLog[]; onMore?: (i: number) => void; note?: (l: ExerciseLog) => ReactNode }) {
   const nav = useNav();

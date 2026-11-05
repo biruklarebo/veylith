@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react';
 import { del, get, set } from 'idb-keyval';
+import { getPhoto } from './api';
 
 // Photo files are kept out of the persisted app state (which is one JSON document) and stored
-// as Blobs under their own IndexedDB keys.
+// as Blobs under their own IndexedDB keys, with the original on the server.
 const key = (id: string) => `photo:${id}`;
 
 export const savePhotoBlob = (id: string, b: Blob) => set(key(id), b);
-export const loadPhotoBlob = (id: string) => get<Blob>(key(id));
 export const deletePhotoBlob = (id: string) => del(key(id));
+
+// From this device, or downloaded and kept the first time a photo from elsewhere is needed.
+export async function loadPhotoBlob(id: string): Promise<Blob | undefined> {
+  const local = await get<Blob>(key(id));
+  if (local) return local;
+  try {
+    const blob = await getPhoto(id);
+    await savePhotoBlob(id, blob);
+    return blob;
+  } catch {
+    return undefined;
+  }
+}
 
 // Backups are JSON, so photos travel as data URLs.
 export const blobToDataUrl = (b: Blob) =>
