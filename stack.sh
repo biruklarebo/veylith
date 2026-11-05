@@ -33,9 +33,10 @@ Other
 
 Database
   db shell              Open a SQL prompt
-  db ui                 Browse the database in a web page
-  db status             Show applied migrations and table sizes
-  db new <name>         Create a migration file to edit
+  db studio             Browse and edit the data in Prisma Studio
+  db status             Show migrations and table sizes
+  db migrate <name>     Turn changes to backend/prisma/schema.prisma into a migration and apply it
+  db url                Show how to connect your own database app
   db backup [name]      Save the database to backups/
   db restore [file]     Replace the database with a backup (lists them if no file)
   db reset              Erase the database, keeping a backup first
@@ -146,31 +147,55 @@ db_shell() {
   fi
 }
 
-db_ui() {
-  compose --profile tools up -d adminer
-  # shellcheck disable=SC1091 # created by ensure_env
-  . ./.env
-  echo "Open http://localhost:${ADMINER_PORT:-8091}"
-  echo "System: PostgreSQL, Server: database, Username: ${POSTGRES_USER:-veylith}, Database: ${POSTGRES_DB:-veylith}"
-  echo "The password is POSTGRES_PASSWORD in .env"
+# A setting as Compose sees it: from the shell first, then .env, then the default.
+setting() {
+  local value=${!1:-}
+  [ -n "$value" ] || value=$(sed -nE "s/^$1=(.*)$/\1/p" .env | tr -d '\r' | tail -1)
+  echo "${value:-$2}"
+}
+
+db_studio() {
+  compose --profile tools up -d --build studio
+  echo "Open http://localhost:$(setting STUDIO_PORT 5555). Stop it with: ./stack.sh down"
 }
 
 db_status() {
-  db_exec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT name, applied_at FROM schema_migrations ORDER BY name" -c "SELECT relname AS table, n_live_tup AS rows, pg_size_pretty(pg_total_relation_size(relid)) AS size FROM pg_stat_user_tables ORDER BY relname"'
+  compose exec -T backend ./node_modules/.bin/prisma migrate status 2>&1 | grep -v '^Loaded Prisma config'
+  # Exact row counts for every table, without listing the tables here.
+  db_exec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT table_name AS table,
+       (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I', table_name), false, true, '')))[1]::text::bigint AS rows,
+       pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) AS size
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name NOT LIKE '\_prisma%'
+ORDER BY table_name;
+SQL
 }
 
-db_new() {
+# Compares schema.prisma with the database, writes the difference as a new migration in
+# backend/prisma/migrations and applies it. The backend is then rebuilt to use it.
+db_migrate() {
   if [ $# -ne 1 ]; then
-    echo "Usage: ./stack.sh db new <name>" >&2
+    echo "Usage: ./stack.sh db migrate <name>, after editing backend/prisma/schema.prisma" >&2
     exit 1
   fi
-  local last next file
-  last=$(ls backend/migrations | sed -nE 's/^([0-9]+)_.*/\1/p' | sort -n | tail -1)
-  next=$(printf '%03d' $((10#${last:-0} + 1)))
-  file="backend/migrations/${next}_$1.sql"
-  echo "-- $1" >"$file"
-  echo "$file"
-  echo "Edit it, then run: ./stack.sh db backup && ./stack.sh restart backend"
+  local tty=-T
+  [ -t 0 ] && tty=
+  db_backup "before-migrate-$(date +%Y%m%d-%H%M%S)"
+  # shellcheck disable=SC2086 # empty when interactive
+  compose run --rm --no-deps $tty -v "$(pwd -W 2>/dev/null || pwd)/backend/prisma:/app/prisma" backend ./node_modules/.bin/prisma migrate dev --name "$1"
+  compose up -d --build --wait backend
+}
+
+db_url() {
+  local port db user
+  port=$(setting POSTGRES_PORT 5432)
+  db=$(setting POSTGRES_DB veylith)
+  user=$(setting POSTGRES_USER veylith)
+  echo "Connect from this machine only:"
+  echo "  postgresql://$user:<password>@localhost:$port/$db"
+  echo "  Host: localhost  Port: $port  Database: $db  User: $user"
+  echo "  The password is POSTGRES_PASSWORD in .env"
 }
 
 db_backup() {
@@ -209,9 +234,10 @@ db() {
   [ $# -gt 0 ] && shift
   case $action in
     shell) db_shell ;;
-    ui) db_ui ;;
+    studio) db_studio ;;
     status) db_status ;;
-    new) db_new "$@" ;;
+    migrate) db_migrate "$@" ;;
+    url) db_url ;;
     backup) db_backup "$@" ;;
     restore) db_restore "$@" ;;
     reset) db_reset ;;

@@ -1,6 +1,6 @@
 # Backend
 
-The backend is a small Node.js API (Fastify) in its own container. It handles sign-in, sync and files, and it's the only thing that talks to the [database](database.md).
+The backend is a small Node.js API (Fastify) in its own container. It handles sign-in, sync and files, and it's the only part of the app that talks to the [database](database.md). You can also reach the database yourself from this machine, with Prisma Studio or your own database app.
 
 | Address | What it is |
 | --- | --- |
@@ -19,8 +19,9 @@ flowchart LR
         server["src/server.js<br/>routes"]
         auth["src/auth.js<br/>passwords and tokens"]
         google["src/google.js<br/>Google sign-in"]
-        db["src/db.js<br/>all database access"]
-        migrations["migrations/<br/>database structure"]
+        db["src/db.js<br/>Prisma Client"]
+        prisma["prisma/<br/>schema and migrations"]
+        start["start.sh<br/>applies migrations"]
     end
 
     database[("database<br/>PostgreSQL")]
@@ -30,11 +31,12 @@ flowchart LR
     server --> google
     server --> db
     google --> db
-    migrations --> db
+    prisma --> db
+    start --> database
     db --> database
 ```
 
-On the app side, every call to the backend is in `frontend/src/lib/api.ts`.
+On the app side, every call to the backend is in `frontend/src/lib/api.ts`. On the database side, every query goes through Prisma Client from `src/db.js`. The structure is described in [Database](database.md).
 
 ## API
 
@@ -106,7 +108,7 @@ flowchart TD
 
 The code is in `frontend/src/lib/sync.ts`, with the merge rules in `syncMerge.ts`.
 
-To point a build at a different server, set `VITE_API_URL` when building. Otherwise the app uses its own address.
+The app calls the API at its own address. To point a build at a different server, set `VITE_API_URL` when building, for example `VITE_API_URL=https://api.example.com npm run build` in `frontend/`. The frontend container doesn't pass this setting through yet, so it always uses its own address.
 
 ## Google sign-in
 
@@ -161,7 +163,7 @@ Email sign-up doesn't verify addresses, so every email account counts as unverif
 
 ## Profiles
 
-Name and picture are on the `users` table. People set them when signing up or in Settings, and uploaded pictures are resized to 512 pixels with location data removed.
+The name is on the `users` table, and the picture is in the `files` table, linked by `users.avatar_id`. People set both when signing up or in Settings, and uploaded pictures are resized to 512 pixels with location data removed.
 
 Each account can only read its own data. Showing people to each other, for example in a group, means new tables and routes that check group membership.
 
@@ -174,7 +176,11 @@ Copy `.env.example` to `.env` to change any of these. `stack.sh` does this on fi
 | `BACKEND_PORT` | `8090` | Port on your machine |
 | `BACKEND_HOST` | `127.0.0.1` | Set to `0.0.0.0` to allow other devices to reach the API directly |
 | `JWT_SECRET` | Generated | Signs sign-ins. Changing it signs everyone out |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Empty | Turn on Google sign-in |
+| `GOOGLE_AUTH_URL`, `GOOGLE_TOKEN_URL`, `GOOGLE_USERINFO_URL` | Google's | Point Google sign-in at a stand-in server, for testing only |
 
-To add a route, add it to `backend/src/server.js` and run `./stack.sh rebuild backend`. The backend can be replaced by anything that serves the same routes, or by changing `frontend/src/lib/api.ts` to match a new one.
+After changing a setting, run `./stack.sh start backend`. `restart` keeps the old settings.
+
+To add a route, add it to `backend/src/server.js` and run `./stack.sh rebuild backend`. If it needs new tables or columns, change `backend/prisma/schema.prisma` and run `./stack.sh db migrate <name>` first. The backend can be replaced by anything that serves the same routes, or by changing `frontend/src/lib/api.ts` to match a new one.
 
 Password reset isn't built: it needs an email service and a reset screen.

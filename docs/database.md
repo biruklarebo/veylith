@@ -1,20 +1,24 @@
 # Database
 
-All app data lives in PostgreSQL, in its own container: accounts, workouts, programs, settings, progress photos and profile pictures. The container has no published port, so only other containers can reach it.
+All app data lives in PostgreSQL, in its own container: accounts, workouts, programs, settings, progress photos and profile pictures. The backend reads and writes it through [Prisma](https://www.prisma.io), and the structure is defined in `backend/prisma/schema.prisma`.
+
+The database port is published on this machine only (`127.0.0.1:5432`), so your own database apps can connect, but other devices can't.
 
 ```mermaid
 flowchart LR
     frontend["frontend<br/>nginx"]
-    backend["backend<br/>API"]
+    backend["backend<br/>API, Prisma Client"]
     database["database<br/>PostgreSQL"]
     volume[("database_data volume")]
-    migrations["backend/migrations<br/>tracked in git"]
+    schema["backend/prisma<br/>schema and migrations<br/>tracked in git"]
+    you["Your database app<br/>or Prisma Studio"]
     backups["backups/<br/>not in git"]
 
     frontend -- "/api" --> backend
-    backend -- "only way in" --> database
+    backend --> database
+    you -- "localhost:5432" --> database
     database <--> volume
-    migrations -- "applied at start" --> backend
+    schema -- "applied at start" --> backend
     database -- "db backup" --> backups
     backups -- "db restore" --> database
 ```
@@ -67,39 +71,59 @@ Everything the app syncs is one row in `items`, with `collection` saying what ki
 | `exercise_records` | Best lifts and targets |
 | `user_state` | Settings, active program, workout in progress |
 
-`files` holds the images themselves. Deleting a user deletes their rows in both tables.
+`files` holds the images themselves. Deleting a user deletes their rows in both tables. Prisma also keeps its own `_prisma_migrations` table, which records the migrations applied.
 
-## Looking at the data
+In the code, the same tables are `User`, `Item` and `File`, with camelCase fields such as `passwordHash`.
+
+## Looking at and changing the data
 
 | Command | What it does |
 | --- | --- |
-| `./stack.sh db status` | Show applied migrations and table sizes |
+| `./stack.sh db url` | Show the details for your own database app |
+| `./stack.sh db studio` | Open Prisma Studio at http://localhost:5555 |
 | `./stack.sh db shell` | Open a SQL prompt |
-| `./stack.sh db ui` | Browse the database in a web page, on this machine only |
+| `./stack.sh db status` | Show migrations, and the exact rows and size of each table |
 
-`db ui` prints the address and sign-in details. It runs an extra `adminer` container, which stays running until `./stack.sh down`.
+**Your own app:** any PostgreSQL client works, such as DBeaver, TablePlus, Beekeeper Studio or the PostgreSQL extension for VS Code. Connect to `localhost`, port `5432`, database and user `veylith`. The password is `POSTGRES_PASSWORD` in `.env`.
+
+**Prisma Studio** runs until `./stack.sh down`. It shares this machine's network, because Studio only listens on localhost. That works on Docker in WSL. On Docker Desktop, host networking has to be turned on in its settings.
+
+Edits made directly in the database reach the app on its next sync, as long as the device hasn't changed the same item in the meantime: a device's own unsynced change wins. Keep `data` in the same shape the app writes, because the app reads it as it is.
 
 ## Changing the structure
 
-The structure lives in numbered SQL files in `backend/migrations`, so it's tracked in git. The backend applies new ones each time it starts, each in a transaction, and records them in `schema_migrations`. A failed migration is rolled back and the backend won't start, and its logs name the file.
+The structure is in `backend/prisma/schema.prisma`, and each change becomes a migration in `backend/prisma/migrations`, both tracked in git. The backend applies new migrations each time it starts.
 
 ```mermaid
 sequenceDiagram
     actor You
-    participant Repo as backend/migrations
-    participant Backend
+    participant Schema as schema.prisma
+    participant Stack as stack.sh
     participant DB as PostgreSQL
+    participant Repo as prisma/migrations
 
-    You->>Repo: ./stack.sh db new add_groups
-    You->>Repo: Write the SQL
-    You->>DB: ./stack.sh db backup
-    You->>Backend: ./stack.sh restart backend
-    Backend->>DB: Apply the new file
-    You->>Repo: Commit the file
+    You->>Schema: Add or change a model
+    You->>Stack: ./stack.sh db migrate add_groups
+    Stack->>DB: Back up
+    Stack->>Repo: Write the migration SQL
+    Stack->>DB: Apply it
+    Stack->>Stack: Rebuild the backend with the new Prisma Client
+    You->>Repo: Commit the schema and migration
     Note over Repo,DB: Every other machine gets it on its next start
 ```
 
-Don't edit a migration that has already run, because it won't run again. Add a new one. There's no automatic undo, so take a backup first.
+For example, to add a nickname to accounts, add this line to the `User` model and run `./stack.sh db migrate add_nickname`:
+
+```prisma
+  nickname     String?
+```
+
+- **Check the SQL:** Prisma writes the migration from the difference, so read it before committing. A rename looks like a removed column plus a new one, which loses that column's data. Edit the SQL by hand to rename instead.
+- **Data loss warnings:** if a change would lose data, Prisma asks before applying it.
+- **Don't edit an applied migration:** it won't run again. Make another change instead.
+- **No automatic undo:** `db migrate` takes a backup first, named `before-migrate-…`, so restore that to go back.
+
+`0_init` is the starting structure. The backend records it as already applied on a database created before Prisma, so older backups still restore.
 
 ## Backups
 
@@ -129,13 +153,15 @@ flowchart TD
 
 | To change | Do this |
 | --- | --- |
-| Tables and columns | Add a migration |
+| Tables and columns | Edit `schema.prisma`, then `./stack.sh db migrate <name>` |
 | PostgreSQL minor version | Happens on `./stack.sh rebuild database` |
 | PostgreSQL major version | See below |
+| Prisma version | Change the three `prisma` packages in `backend/package.json` together, then `./stack.sh rebuild backend` |
+| Port for your own app | Set `POSTGRES_PORT` in `.env` |
 | Database name or user | Set `POSTGRES_DB` and `POSTGRES_USER` in `.env` before first start |
 | Move to a hosted PostgreSQL | Point `DATABASE_URL` in `compose.yaml` at it, then restore a backup there |
-| Move to another database | Replace `backend/src/db.js` and the SQL in the backend |
-| Move images to file storage | Replace the `files` queries in `backend/src/server.js` |
+| Move to MySQL or SQLite | Change the provider in `schema.prisma`, start the migrations afresh, and move the data across |
+| Move images to file storage | Replace the `File` queries in `backend/src/server.js` and `backend/src/db.js` |
 
 To change the PostgreSQL major version, its data files need converting, so go through a backup:
 

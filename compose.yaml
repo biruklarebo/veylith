@@ -32,18 +32,15 @@ services:
       GOOGLE_USERINFO_URL: ${GOOGLE_USERINFO_URL:-}
     ports:
       - "${BACKEND_HOST:-127.0.0.1}:${BACKEND_PORT:-8090}:8090"
-    volumes:
-      # Live from the repo, so a new migration only needs a restart.
-      - ./backend/migrations:/app/migrations:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/api/health"]
       interval: 30s
       timeout: 3s
       retries: 3
-      start_period: 5s
+      start_period: 20s
 
-  # No published port: only other containers can reach the database.
+  # Published on this machine only, for your own database apps. Other devices can't reach it.
   database:
     build:
       context: ./database
@@ -53,6 +50,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-veylith}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./stack.sh to create .env}
       POSTGRES_DB: ${POSTGRES_DB:-veylith}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       # All app data. Survives rebuilds and `down`.
       - database_data:/var/lib/postgresql/data
@@ -64,16 +63,19 @@ services:
       retries: 5
       start_period: 10s
 
-  # Browse the database in a web page. Only runs with: ./stack.sh db ui
-  adminer:
-    image: adminer:5
+  # Prisma Studio, to browse and edit the data. Only runs with: ./stack.sh db studio
+  # Studio only listens on localhost, so it shares this machine's network and reaches the
+  # database through its published port.
+  studio:
+    build: ./backend
     profiles: [tools]
+    network_mode: host
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     environment:
-      ADMINER_DEFAULT_SERVER: database
-    ports:
-      - "127.0.0.1:${ADMINER_PORT:-8091}:8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-veylith}:${POSTGRES_PASSWORD:?run ./stack.sh to create .env}@127.0.0.1:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-veylith}
+    command: ["./node_modules/.bin/prisma", "studio", "--port", "${STUDIO_PORT:-5555}", "--browser", "none"]
 
 volumes:
   database_data:

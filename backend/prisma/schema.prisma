@@ -1,0 +1,59 @@
+// The database structure. Change it here, then run: ./stack.sh db migrate <name>
+// Field names are camelCase in code and snake_case in the database.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Accounts. passwordHash is empty for Google-only accounts.
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  name         String   @default("")
+  passwordHash String?  @map("password_hash")
+  googleSub    String?  @unique @map("google_sub")
+  verified     Boolean  @default(false)
+  avatarId     String?  @map("avatar_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  items        Item[]
+  files        File[]
+
+  @@map("users")
+}
+
+// Everything the app syncs, one row per item. `collection` is the kind of item, `key` is the
+// app's own id for it and `data` is the item as JSON.
+model Item {
+  userId     String   @map("user_id") @db.Uuid
+  collection String
+  key        String
+  data       Json
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([userId, collection, key])
+  @@map("items")
+}
+
+// Progress photos and profile pictures.
+model File {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  key         String
+  contentType String   @map("content_type")
+  data        Bytes
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, key])
+  @@map("files")
+}

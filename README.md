@@ -22,7 +22,7 @@ flowchart LR
 
 ```
 frontend/      React app and its container
-backend/       API container and database migrations
+backend/       API container, with the Prisma schema and migrations
 database/      PostgreSQL container
 docs/          Documentation
 compose.yaml   All containers
@@ -49,7 +49,8 @@ The first run creates `.env` with generated secrets. To look after the database:
 
 ```bash
 ./stack.sh db status   # migrations and table sizes
-./stack.sh db ui       # browse it in a web page
+./stack.sh db studio   # browse and edit the data
+./stack.sh db url      # connect your own database app
 ./stack.sh db backup   # save it to backups/
 ```
 

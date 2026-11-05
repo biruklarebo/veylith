@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { query } from './db.js';
+import { prisma, saveAvatar } from './db.js';
 import { signToken } from './auth.js';
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -31,12 +31,7 @@ async function copyPicture(userId, url) {
     const type = res.headers.get('content-type')?.split(';')[0] ?? '';
     const data = Buffer.from(await res.arrayBuffer());
     if (!res.ok || !type.startsWith('image/') || data.length > MAX_PICTURE) return;
-    const file = await query(
-      `INSERT INTO files (user_id, key, content_type, data) VALUES ($1, 'avatar', $2, $3)
-       ON CONFLICT (user_id, key) DO UPDATE SET content_type = $2, data = $3, id = gen_random_uuid() RETURNING id`,
-      [userId, type, data],
-    );
-    await query('UPDATE users SET avatar_id = $1 WHERE id = $2', [file.rows[0].id, userId]);
+    await saveAvatar(userId, type, data);
   } catch (e) {
     console.warn(`Could not copy the Google picture: ${e.message}`); // the account still works
   }
@@ -45,29 +40,27 @@ async function copyPicture(userId, url) {
 // Finds or creates the account for a Google profile. Returns its id, or null if refused.
 async function accountFor(profile) {
   const email = profile.email.toLowerCase();
-  const known = (await query('SELECT id FROM users WHERE google_sub = $1', [profile.sub])).rows[0];
+  const known = await prisma.user.findUnique({ where: { googleSub: profile.sub }, select: { id: true } });
   if (known) return known.id;
 
-  const existing = (await query('SELECT id, verified FROM users WHERE email = $1', [email])).rows[0];
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, verified: true } });
   if (existing) {
     if (!profile.email_verified) return null;
     // An unverified account may have been registered by someone else with this address, so
     // its password stops working now the real owner has shown up.
-    await query(
-      'UPDATE users SET google_sub = $1, verified = true, password_hash = CASE WHEN verified THEN password_hash END WHERE id = $2',
-      [profile.sub, existing.id],
-    );
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { googleSub: profile.sub, verified: true, ...(existing.verified ? {} : { passwordHash: null }) },
+    });
     return existing.id;
   }
 
-  const created = await query('INSERT INTO users (email, name, google_sub, verified) VALUES ($1, $2, $3, $4) RETURNING id', [
-    email,
-    profile.name ?? '',
-    profile.sub,
-    !!profile.email_verified,
-  ]);
-  await copyPicture(created.rows[0].id, profile.picture);
-  return created.rows[0].id;
+  const created = await prisma.user.create({
+    data: { email, name: profile.name ?? '', googleSub: profile.sub, verified: !!profile.email_verified },
+    select: { id: true },
+  });
+  await copyPicture(created.id, profile.picture);
+  return created.id;
 }
 
 export function googleRoutes(app) {

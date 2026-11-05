@@ -29,7 +29,7 @@ flowchart LR
     subgraph compose["compose.yaml"]
         frontend["frontend<br/>nginx, port 8088"]
         backend["backend<br/>API, port 8090"]
-        database["database<br/>PostgreSQL, no published port"]
+        database["database<br/>PostgreSQL, port 5432<br/>this machine only"]
         volume[("database_data")]
     end
 
@@ -73,7 +73,7 @@ Use `rebuild` after changing code. `start` and `restart` keep running the existi
 flowchart TD
     changed{"What changed?"}
     changed -- "App code or Dockerfile" --> rebuild["rebuild"]
-    changed -- "Migrations" --> restart["restart backend"]
+    changed -- "schema.prisma" --> migrate["db migrate &lt;name&gt;<br/>rebuilds the backend"]
     changed -- "Port or other .env setting" --> start["start"]
     rebuild -- "Build fails on stale layers" --> clean["clean-build"]
 ```
@@ -107,9 +107,10 @@ With no services given, a command applies to the whole stack.
 | Command | What it does |
 | --- | --- |
 | `./stack.sh db shell` | Open a SQL prompt |
-| `./stack.sh db ui` | Browse the database in a web page |
-| `./stack.sh db status` | Show applied migrations and table sizes |
-| `./stack.sh db new <name>` | Create a migration file to edit |
+| `./stack.sh db studio` | Browse and edit the data in Prisma Studio |
+| `./stack.sh db status` | Show migrations and table sizes |
+| `./stack.sh db migrate <name>` | Turn changes to `backend/prisma/schema.prisma` into a migration and apply it |
+| `./stack.sh db url` | Show how to connect your own database app |
 | `./stack.sh db backup [name]` | Save the database to `backups/` |
 | `./stack.sh db restore [file]` | Replace the database with a backup, or list backups |
 | `./stack.sh db reset` | Erase the database, keeping a backup first |

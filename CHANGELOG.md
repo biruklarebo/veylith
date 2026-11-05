@@ -6,6 +6,27 @@ Add new changes under `Unreleased` in the same PR as the change. Nothing has bee
 
 ## [Unreleased]
 
+### Action needed
+
+- The database is now reachable from this machine on port 5432, for your own database app. Run `./stack.sh db url` for the details. If something else on this machine already uses that port, set `POSTGRES_PORT` in `.env`.
+
+### Added
+
+- Prisma manages the database: the structure is in `backend/prisma/schema.prisma`, and the backend uses Prisma Client for every query.
+- `./stack.sh db migrate <name>` turns schema changes into a migration, takes a backup and applies it.
+- `./stack.sh db studio` opens Prisma Studio to browse and edit the data.
+- `./stack.sh db url` shows how to connect your own database app.
+
+### Changed
+
+- Migrations now live in `backend/prisma/migrations`. Existing databases and older backups are picked up automatically, with no change to the data.
+- `./stack.sh db status` shows exact row counts.
+
+### Removed
+
+- `./stack.sh db ui` and the Adminer container, in favour of Prisma Studio or your own database app.
+- `./stack.sh db new`, replaced by `db migrate`.
+
 ## 2026-11-02
 
 ### Action needed
