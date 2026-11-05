@@ -22,6 +22,11 @@ Add new changes under `Unreleased` in the same PR as the change. Nothing has bee
 - Migrations now live in `backend/prisma/migrations`. Existing databases and older backups are picked up automatically, with no change to the data.
 - `./stack.sh db status` shows exact row counts.
 
+### Fixed
+
+- `.env.example` said to run `./stack.sh restart backend` after adding Google credentials, which keeps the old settings. It now says `start backend`.
+- The docs said a migration only needs `restart backend`. Migrations are built into the backend image, so `db migrate` now rebuilds it, and the docs say so.
+
 ### Removed
 
 - `./stack.sh db ui` and the Adminer container, in favour of Prisma Studio or your own database app.
